@@ -41,7 +41,7 @@ export default function MetricsPage() {
   const kpis = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter((t) => t.status === "done").length;
-    const unclaimed = tasks.filter((t) => !t.assigneeUid).length;
+    const unclaimed = tasks.filter((t) => t.assigneeUids.length === 0).length;
     const uncertified = students.filter((s) => s.certificationIds.length === 0).length;
     return { total, done, unclaimed, uncertified };
   }, [tasks, students]);
@@ -62,7 +62,7 @@ export default function MetricsPage() {
     return students
       .map((u) => ({
         name: u.displayName,
-        active: tasks.filter((t) => t.assigneeUid === u.uid && t.status !== "done").length,
+        active: tasks.filter((t) => t.assigneeUids.includes(u.uid) && t.status !== "done").length,
       }))
       .sort((a, b) => b.active - a.active)
       .slice(0, 12);

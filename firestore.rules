@@ -61,18 +61,23 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && canManageSubteam(resource.data.subteam);
 
-      // Updates: coaches and the task's own subteam leader can change anything.
-      // A plain student may only claim an open task they're certified for, or
-      // move a task already assigned to them through its status column.
+      // Updates: coaches and the task's own subteam leader can change anything,
+      // including directly setting the assignee list. A plain student may only
+      // join an open-to-them task they're certified for, leave a task they're
+      // on, or move the status of a task they're already assigned to.
       allow update: if canManageSubteam(resource.data.subteam)
         || (
           isSignedIn() &&
           (
-            // Claiming: task was unassigned, student assigns it to self, and
-            // holds a matching certification.
-            (resource.data.assigneeUid == null
-              && request.resource.data.assigneeUid == request.auth.uid
-              && (
+            // Join: add yourself to assigneeUids, nothing else changes, and
+            // you hold a matching certification (if the task requires one).
+            (
+              !resource.data.assigneeUids.hasAny([request.auth.uid]) &&
+              request.resource.data.assigneeUids.hasAll(resource.data.assigneeUids) &&
+              request.resource.data.assigneeUids.hasAll([request.auth.uid]) &&
+              request.resource.data.assigneeUids.size() == resource.data.assigneeUids.size() + 1 &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt']) &&
+              (
                 resource.data.requiredCertificationIds.size() == 0 ||
                 (resource.data.requireAllCertifications
                   ? resource.data.requiredCertificationIds.hasAll(myProfile().certificationIds)
@@ -80,11 +85,20 @@ service cloud.firestore {
               )
             )
             ||
-            // Moving a card you already hold: only status/updatedAt may change.
-            (resource.data.assigneeUid == request.auth.uid
-              && request.resource.data.assigneeUid == request.auth.uid
-              && request.resource.data.diff(resource.data).affectedKeys()
-                   .hasOnly(['status', 'updatedAt']))
+            // Leave: remove only yourself from assigneeUids.
+            (
+              resource.data.assigneeUids.hasAny([request.auth.uid]) &&
+              !request.resource.data.assigneeUids.hasAny([request.auth.uid]) &&
+              request.resource.data.assigneeUids.size() == resource.data.assigneeUids.size() - 1 &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt'])
+            )
+            ||
+            // Move a card you're already on: only status/updatedAt may change.
+            (
+              resource.data.assigneeUids.hasAny([request.auth.uid]) &&
+              request.resource.data.assigneeUids == resource.data.assigneeUids &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            )
           )
         );
     }

@@ -62,7 +62,7 @@ export interface Task {
   // requireAllCertifications) to claim this task.
   requiredCertificationIds: string[];
   requireAllCertifications: boolean;
-  assigneeUid: string | null;
+  assigneeUids: string[];
   createdByUid: string;
   createdAt: string;
   updatedAt: string;

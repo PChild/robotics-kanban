@@ -23,14 +23,14 @@ export default function MyTasksPage() {
   const [openTask, setOpenTask] = useState<Task | null>(null);
 
   const myTasks = useMemo(
-    () => tasks.filter((t) => t.assigneeUid === profile?.uid),
+    () => tasks.filter((t) => profile && t.assigneeUids.includes(profile.uid)),
     [tasks, profile]
   );
 
   const eligibleOpenTasks = useMemo(() => {
     if (!profile) return [];
     return tasks.filter((t) => {
-      if (t.assigneeUid) return false;
+      if (t.assigneeUids.includes(profile.uid)) return false;
       if (t.requiredCertificationIds.length === 0) return true;
       return t.requireAllCertifications
         ? t.requiredCertificationIds.every((id) => profile.certificationIds.includes(id))
@@ -107,6 +107,7 @@ export default function MyTasksPage() {
           defaultSubteam={openTask.subteam}
           editableSubteams={canManageSubteam(openTask.subteam) ? [openTask.subteam] : [openTask.subteam]}
           certifications={certifications}
+          users={users}
           onClose={() => setOpenTask(null)}
         />
       )}

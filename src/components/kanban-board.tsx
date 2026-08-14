@@ -44,7 +44,7 @@ export function KanbanBoard({
   function canDrag(task: Task) {
     if (!profile) return false;
     if (canManageSubteam(task.subteam)) return true;
-    return task.assigneeUid === profile.uid;
+    return task.assigneeUids.includes(profile.uid);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -94,6 +94,7 @@ export function KanbanBoard({
           defaultSubteam={openTask.subteam}
           editableSubteams={editableSubteams.length > 0 ? editableSubteams : [openTask.subteam]}
           certifications={certifications}
+          users={users}
           onClose={() => setOpenTask(null)}
         />
       )}
@@ -103,6 +104,7 @@ export function KanbanBoard({
           defaultSubteam={createDefaultSubteam}
           editableSubteams={editableSubteams}
           certifications={certifications}
+          users={users}
           onClose={() => setCreating(false)}
         />
       )}

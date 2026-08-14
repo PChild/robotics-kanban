@@ -9,7 +9,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <RequireAuth>
       <NavBar />
       <main className="flex-1 grid-paper">
-        <div className="max-w-7xl mx-auto px-4 py-6">{children}</div>
+        <div className="max-w-[1800px] mx-auto px-6 py-6">{children}</div>
       </main>
     </RequireAuth>
   );

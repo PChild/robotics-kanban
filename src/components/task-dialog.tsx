@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import type { Task, Subteam, Priority, Certification } from "@/types";
+import type { Task, Subteam, Priority, Certification, UserProfile } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
-import { createTask, updateTask, deleteTask, releaseTask } from "@/lib/task-actions";
+import { createTask, updateTask, deleteTask, leaveTask } from "@/lib/task-actions";
 import { useAuth } from "@/context/auth-context";
 
 interface TaskDialogProps {
@@ -11,6 +11,7 @@ interface TaskDialogProps {
   defaultSubteam: Subteam;
   editableSubteams: Subteam[]; // subteams this user is allowed to assign the task to
   certifications: Certification[];
+  users: UserProfile[];
   task?: Task; // required when mode === "edit"
   onClose: () => void;
 }
@@ -20,6 +21,7 @@ export function TaskDialog({
   defaultSubteam,
   editableSubteams,
   certifications,
+  users,
   task,
   onClose,
 }: TaskDialogProps) {
@@ -33,16 +35,28 @@ export function TaskDialog({
     task?.requiredCertificationIds ?? []
   );
   const [requireAll, setRequireAll] = useState(task?.requireAllCertifications ?? false);
+  const [assigneeUids, setAssigneeUids] = useState<string[]>(task?.assigneeUids ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canManageThisTask = task ? canManageSubteam(task.subteam) : true;
   const canDelete = mode === "edit" && task && canManageSubteam(task.subteam);
+  const readOnly = mode === "edit" && !canManageThisTask;
+
+  // Anyone assignable to this subteam's tasks: coaches (subteam-agnostic) plus
+  // students/leaders on the matching subteam.
+  const assignableUsers = users.filter((u) => u.role === "coach" || u.subteam === subteam);
+
+  const creator = task ? users.find((u) => u.uid === task.createdByUid) : undefined;
 
   function toggleCert(id: string) {
     setRequiredCertificationIds((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
     );
+  }
+
+  function toggleAssignee(uid: string) {
+    setAssigneeUids((prev) => (prev.includes(uid) ? prev.filter((a) => a !== uid) : [...prev, uid]));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -61,6 +75,7 @@ export function TaskDialog({
           requireAllCertifications: requireAll,
           createdByUid: profile.uid,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+          assigneeUids,
         });
       } else if (task) {
         await updateTask(task.id, {
@@ -71,6 +86,7 @@ export function TaskDialog({
           requiredCertificationIds,
           requireAllCertifications: requireAll,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+          assigneeUids,
         });
       }
       onClose();
@@ -88,14 +104,13 @@ export function TaskDialog({
     onClose();
   }
 
-  async function handleRelease() {
-    if (!task) return;
-    await releaseTask(task.id);
+  async function handleLeave() {
+    if (!task || !profile) return;
+    await leaveTask(task.id, profile.uid);
     onClose();
   }
 
-  const isOwnClaimedTask = task && profile && task.assigneeUid === profile.uid;
-  const readOnly = mode === "edit" && !canManageThisTask;
+  const isOnThisTask = task && profile && task.assigneeUids.includes(profile.uid);
 
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
@@ -111,6 +126,17 @@ export function TaskDialog({
             Close
           </button>
         </div>
+
+        {task && (
+          <p className="text-xs text-steel">
+            Created by {creator?.displayName ?? "someone no longer on the roster"} on{" "}
+            {new Date(task.createdAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        )}
 
         <label className="block">
           <span className="tracked-label text-xs text-steel">Title</span>
@@ -176,6 +202,45 @@ export function TaskDialog({
           />
         </label>
 
+        {!readOnly && (
+          <div>
+            <span className="tracked-label text-xs text-steel">Assignees</span>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {assignableUsers.map((u) => (
+                <button
+                  type="button"
+                  key={u.uid}
+                  onClick={() => toggleAssignee(u.uid)}
+                  className={`text-xs px-2 py-1 rounded-sm border ${
+                    assigneeUids.includes(u.uid)
+                      ? "bg-blueprint text-white border-blueprint"
+                      : "bg-white text-steel border-steel-line"
+                  }`}
+                >
+                  {u.displayName}
+                  {u.role === "coach" && " (coach)"}
+                </button>
+              ))}
+              {assignableUsers.length === 0 && (
+                <p className="text-xs text-steel">No one on the roster for this subteam yet.</p>
+              )}
+            </div>
+          </div>
+        )}
+        {readOnly && (
+          <div>
+            <span className="tracked-label text-xs text-steel">Assignees</span>
+            <p className="text-sm mt-1">
+              {task && task.assigneeUids.length > 0
+                ? users
+                    .filter((u) => task.assigneeUids.includes(u.uid))
+                    .map((u) => u.displayName)
+                    .join(", ")
+                : "Unclaimed"}
+            </p>
+          </div>
+        )}
+
         <div>
           <span className="tracked-label text-xs text-steel">Required certifications</span>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -218,9 +283,9 @@ export function TaskDialog({
               {submitting ? "Saving…" : mode === "create" ? "Create task" : "Save changes"}
             </button>
           )}
-          {isOwnClaimedTask && (
-            <button type="button" onClick={handleRelease} className="btn-secondary">
-              Release task
+          {isOnThisTask && (
+            <button type="button" onClick={handleLeave} className="btn-secondary">
+              Leave task
             </button>
           )}
           {canDelete && (

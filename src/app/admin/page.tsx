@@ -9,6 +9,7 @@ import {
   updateUserRoleAndSubteam,
   deleteUserProfile,
   createCertification,
+  updateCertification,
   deleteCertification,
 } from "@/lib/admin-actions";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
@@ -244,11 +245,16 @@ function NewAccountDialog({
       });
       onCreated(email, tempPassword);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "";
-      if (message.includes("email-already-in-use")) {
+      const code = (err as { code?: string } | undefined)?.code ?? "";
+      const message = err instanceof Error ? err.message : String(err);
+      if (code.includes("email-already-in-use")) {
         setError("That email is already registered.");
+      } else if (code === "permission-denied") {
+        setError(
+          "The account was created, but saving its profile was denied by Firestore. This usually means firestore.rules hasn't been published yet (Firebase console > Firestore Database > Rules > Publish), or your own coach profile document is missing/misconfigured."
+        );
       } else {
-        setError("Couldn't create the account. Check the email format and try again.");
+        setError(`Couldn't create the account: ${message}`);
       }
     } finally {
       setSubmitting(false);
@@ -307,6 +313,7 @@ function NewAccountDialog({
 function CertificationsTab() {
   const { certifications } = useCertifications();
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<import("@/types").Certification | null>(null);
 
   return (
     <div className="space-y-4">
@@ -320,18 +327,23 @@ function CertificationsTab() {
       <div className="grid gap-2 sm:grid-cols-2">
         {certifications.map((c) => (
           <div key={c.id} className="bg-paper-raised border border-steel-line rounded p-3">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-2">
               <p className="font-medium text-sm">{c.name}</p>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete "${c.name}"? Tasks requiring it will no longer be gated.`)) {
-                    deleteCertification(c.id);
-                  }
-                }}
-                className="text-danger text-xs tracked-label"
-              >
-                Delete
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setEditing(c)} className="text-blueprint text-xs tracked-label">
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete "${c.name}"? Tasks requiring it will no longer be gated.`)) {
+                      deleteCertification(c.id);
+                    }
+                  }}
+                  className="text-danger text-xs tracked-label"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
             <p className="text-xs text-steel mt-1">{c.description || "No description"}</p>
             <p className="tracked-label text-[10px] text-blueprint mt-2">
@@ -344,26 +356,41 @@ function CertificationsTab() {
         )}
       </div>
 
-      {showForm && <NewCertDialog onClose={() => setShowForm(false)} />}
+      {showForm && <CertDialog mode="create" onClose={() => setShowForm(false)} />}
+      {editing && (
+        <CertDialog mode="edit" certification={editing} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
 
-function NewCertDialog({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [subteam, setSubteam] = useState<Subteam | "">("");
+function CertDialog({
+  mode,
+  certification,
+  onClose,
+}: {
+  mode: "create" | "edit";
+  certification?: import("@/types").Certification;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(certification?.name ?? "");
+  const [description, setDescription] = useState(certification?.description ?? "");
+  const [subteam, setSubteam] = useState<Subteam | "">(certification?.subteam ?? "");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createCertification({
-        name,
-        description,
-        subteam: subteam || null,
-      });
+      if (mode === "create") {
+        await createCertification({ name, description, subteam: subteam || null });
+      } else if (certification) {
+        await updateCertification(certification.id, {
+          name,
+          description,
+          subteam: subteam || null,
+        });
+      }
       onClose();
     } finally {
       setSubmitting(false);
@@ -377,7 +404,9 @@ function NewCertDialog({ onClose }: { onClose: () => void }) {
         className="bg-paper-raised border border-steel-line rounded w-full max-w-sm p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h2 className="tracked-label text-xs text-blueprint font-bold">New certification</h2>
+          <h2 className="tracked-label text-xs text-blueprint font-bold">
+            {mode === "create" ? "New certification" : "Edit certification"}
+          </h2>
           <button type="button" onClick={onClose} className="text-steel text-sm">
             Close
           </button>
@@ -402,7 +431,7 @@ function NewCertDialog({ onClose }: { onClose: () => void }) {
           </select>
         </label>
         <button type="submit" disabled={submitting} className="btn-primary w-full">
-          {submitting ? "Creating…" : "Create certification"}
+          {submitting ? "Saving…" : mode === "create" ? "Create certification" : "Save changes"}
         </button>
       </form>
     </div>

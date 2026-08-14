@@ -32,7 +32,7 @@ export function KanbanColumn({
   const meta = STATUS_META[status];
 
   return (
-    <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
+    <div className="flex flex-col min-w-[260px] flex-1 shrink-0">
       <div className="flex items-baseline gap-2 px-1 mb-2">
         <span className="tracked-label text-[10px] text-steel">{meta.step}</span>
         <h3 className="tracked-label text-xs font-bold">{meta.label}</h3>

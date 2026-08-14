@@ -2,6 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { formatDistanceToNow } from "date-fns";
 import type { Task, Certification, UserProfile } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
 import { useAuth } from "@/context/auth-context";
@@ -29,10 +30,12 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
   });
 
   const meta = SUBTEAM_META[task.subteam];
-  const assignee = users.find((u) => u.uid === task.assigneeUid);
+  const assignees = users.filter((u) => task.assigneeUids.includes(u.uid));
   const requiredCerts = certifications.filter((c) =>
     task.requiredCertificationIds.includes(c.id)
   );
+
+  const alreadyOn = !!profile && task.assigneeUids.includes(profile.uid);
 
   const isEligible =
     !!profile &&
@@ -45,7 +48,7 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
             profile.certificationIds.includes(id)
           )));
 
-  const canClaim = !task.assigneeUid && isEligible && profile?.role === "student";
+  const canClaim = !alreadyOn && isEligible && profile?.role === "student";
 
   const style = transform
     ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }
@@ -63,9 +66,7 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
         className={`w-full text-left p-3 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="tracked-label text-[10px] text-steel">
-            {meta.label} · #{task.id.slice(0, 5)}
-          </span>
+          <span className="tracked-label text-[10px] text-steel">{meta.label}</span>
           <span
             className="tracked-label text-[10px] font-bold"
             style={{ color: PRIORITY_MARK[task.priority].color }}
@@ -90,18 +91,20 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
           </div>
         )}
 
-        <div className="border-t border-dashed border-steel-line mt-2.5 pt-2 flex items-center justify-between">
+        <div className="border-t border-dashed border-steel-line mt-2.5 pt-2 flex items-center justify-between gap-2">
           <span className="text-xs text-steel truncate">
-            {assignee ? assignee.displayName : "Unclaimed"}
+            {assignees.length > 0
+              ? assignees.map((a) => a.displayName).join(", ")
+              : "Unclaimed"}
           </span>
-          {task.dueDate && (
-            <span className="text-[10px] text-steel tracked-label">
-              {new Date(task.dueDate).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })}
-            </span>
-          )}
+          <span className="text-[10px] text-steel whitespace-nowrap shrink-0">
+            {task.dueDate
+              ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}`
+              : formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
+          </span>
         </div>
       </button>
 
@@ -117,7 +120,7 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
         </button>
       )}
 
-      {!task.assigneeUid && !isEligible && task.requiredCertificationIds.length > 0 && (
+      {!alreadyOn && !isEligible && task.requiredCertificationIds.length > 0 && (
         <div className="w-full text-center tracked-label text-[10px] py-1.5 bg-steel/10 text-steel border-t border-steel-line">
           Cert required
         </div>

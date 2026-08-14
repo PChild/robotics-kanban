@@ -2,6 +2,7 @@ import { initializeApp, deleteApp } from "firebase/app";
 import {
   getAuth,
   createUserWithEmailAndPassword,
+  deleteUser,
   signOut as secondarySignOut,
 } from "firebase/auth";
 import { doc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
@@ -53,9 +54,20 @@ export async function createAccount(input: CreateAccountInput) {
       createdAt: new Date().toISOString(),
       mustResetPassword: true,
     };
-    // Written with the coach's own (still-authenticated, main-app) Firestore
-    // instance, so this write is subject to the normal security rules.
-    await setDoc(doc(db, "users", uid), profile);
+
+    try {
+      // Written with the coach's own (still-authenticated, main-app)
+      // Firestore instance, so this write is subject to the normal security
+      // rules — it'll fail with 'permission-denied' if firestore.rules
+      // hasn't been published yet, or the coach's own profile doc is
+      // missing/misconfigured.
+      await setDoc(doc(db, "users", uid), profile);
+    } catch (firestoreError) {
+      // Don't leave an orphaned Auth account with no profile behind — clean
+      // it up so retrying doesn't hit "email already in use".
+      await deleteUser(cred.user).catch(() => {});
+      throw firestoreError;
+    }
 
     await secondarySignOut(secondaryAuth);
     return { uid, tempPassword };
@@ -97,6 +109,13 @@ export async function createCertification(cert: Omit<Certification, "id">) {
   const full: Certification = { ...cert, id: ref.id };
   await setDoc(ref, full);
   return full;
+}
+
+export async function updateCertification(
+  certId: string,
+  changes: Partial<Omit<Certification, "id">>
+) {
+  await updateDoc(doc(db, "certifications", certId), changes);
 }
 
 export async function deleteCertification(certId: string) {
