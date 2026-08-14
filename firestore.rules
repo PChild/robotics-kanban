@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// Deploy this from the Firebase console: Firestore Database > Rules tab,
+// or via `firebase deploy --only firestore:rules` once you have the CLI set up.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() {
+      return myProfile().role;
+    }
+
+    function isCoach() {
+      return isSignedIn() && myRole() == 'coach';
+    }
+
+    function isStudentLeader() {
+      return isSignedIn() && myRole() == 'student_leader';
+    }
+
+    // Student leaders are scoped to their own subteam; coaches are not.
+    function canManageSubteam(subteam) {
+      return isCoach() || (isStudentLeader() && myProfile().subteam == subteam);
+    }
+
+    // --- users ---
+    match /users/{uid} {
+      // Anyone signed in can read profiles (needed to show assignee names,
+      // rosters, etc). Only coaches can create/change role, subteam, or certs.
+      allow read: if isSignedIn();
+      allow create: if isCoach();
+      allow update: if isCoach()
+        || (isSignedIn() && request.auth.uid == uid
+            // Students may only touch their own display name and clear the
+            // must-reset-password flag — never their own role/certs/subteam.
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.subteam == resource.data.subteam
+            && request.resource.data.certificationIds == resource.data.certificationIds);
+      allow delete: if isCoach();
+    }
+
+    // --- certifications ---
+    match /certifications/{certId} {
+      allow read: if isSignedIn();
+      allow write: if isCoach();
+    }
+
+    // --- tasks ---
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && canManageSubteam(request.resource.data.subteam);
+
+      allow delete: if isSignedIn() && canManageSubteam(resource.data.subteam);
+
+      // Updates: coaches and the task's own subteam leader can change anything.
+      // A plain student may only claim an open task they're certified for, or
+      // move a task already assigned to them through its status column.
+      allow update: if canManageSubteam(resource.data.subteam)
+        || (
+          isSignedIn() &&
+          (
+            // Claiming: task was unassigned, student assigns it to self, and
+            // holds a matching certification.
+            (resource.data.assigneeUid == null
+              && request.resource.data.assigneeUid == request.auth.uid
+              && (
+                resource.data.requiredCertificationIds.size() == 0 ||
+                (resource.data.requireAllCertifications
+                  ? resource.data.requiredCertificationIds.hasAll(myProfile().certificationIds)
+                  : resource.data.requiredCertificationIds.hasAny(myProfile().certificationIds))
+              )
+            )
+            ||
+            // Moving a card you already hold: only status/updatedAt may change.
+            (resource.data.assigneeUid == request.auth.uid
+              && request.resource.data.assigneeUid == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['status', 'updatedAt']))
+          )
+        );
+    }
+
+    // --- subteams (simple reference list, coach-managed) ---
+    match /subteams/{subteamId} {
+      allow read: if isSignedIn();
+      allow write: if isCoach();
+    }
+  }
+}

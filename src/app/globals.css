@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #14181c;
+  --paper: #e9eae4;
+  --paper-raised: #f6f6f2;
+  --blueprint: #1e5f8c;
+  --blueprint-deep: #123b57;
+  --hazard: #e0a23a;
+  --steel: #6b7280;
+  --steel-line: #d3d4cd;
+  --success: #3f8f5f;
+  --danger: #b1443a;
+
+  /* subteam identity colors */
+  --mech: #3d5a80;
+  --elec: #e0a23a;
+  --prog: #2f8f76;
+  --cad: #7b6d99;
+  --biz: #a9603f;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-blueprint: var(--blueprint);
+  --color-blueprint-deep: var(--blueprint-deep);
+  --color-hazard: var(--hazard);
+  --color-steel: var(--steel);
+  --color-steel-line: var(--steel-line);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-mech: var(--mech);
+  --color-elec: var(--elec);
+  --color-prog: var(--prog);
+  --color-cad: var(--cad);
+  --color-biz: var(--biz);
+
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* faint blueprint grid, used behind board areas */
+.grid-paper {
+  background-image:
+    linear-gradient(var(--steel-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--steel-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: var(--paper);
+}
+
+.tracked-label {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--steel-line);
+  background: white;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+.input:focus {
+  border-color: var(--blueprint);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blueprint) 20%, transparent);
+}
+
+.btn-primary {
+  background: var(--blueprint);
+  color: white;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+.btn-primary:hover {
+  background: var(--blueprint-deep);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.btn-secondary {
+  background: var(--paper-raised);
+  border: 1px solid var(--steel-line);
+  color: var(--ink);
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+}
+.btn-secondary:hover {
+  border-color: var(--steel);
+}
