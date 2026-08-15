@@ -83,7 +83,7 @@ export function TaskCard({ task, tasks, certifications, users, draggable, onOpen
             {assignees.length > 0 ? assignees.map((a) => a.displayName).join(", ") : "Unclaimed"}
           </span>
           <span className="text-[10px] text-white/80 whitespace-nowrap shrink-0">
-            {task.dueDate ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+            {task.dueDate ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}`
               : formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
           </span>
         </div>

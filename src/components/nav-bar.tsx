@@ -20,6 +20,7 @@ export function NavBar() {
     ...(profile.subteam
       ? [{ href: `/board/${profile.subteam}`, label: "My subteam" }]
       : []),
+    { href: "/calendar", label: "Calendar" },
     { href: "/my-tasks", label: "My tasks" },
     { href: "/certifications", label: "Certifications" },
     ...(canSeeMetrics ? [{ href: "/metrics", label: "Metrics" }] : []),
