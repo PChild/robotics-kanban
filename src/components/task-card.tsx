@@ -9,122 +9,71 @@ import { useAuth } from "@/context/auth-context";
 import { claimTask } from "@/lib/task-actions";
 
 const PRIORITY_MARK: Record<Task["priority"], { label: string; color: string }> = {
-  high: { label: "!!!", color: "var(--danger)" },
-  medium: { label: "!!", color: "var(--hazard)" },
-  low: { label: "!", color: "var(--steel)" },
+  high: { label: "High", color: "var(--danger)" },
+  medium: { label: "Medium", color: "var(--hazard)" },
+  low: { label: "Low", color: "var(--steel)" },
 };
 
-interface TaskCardProps {
-  task: Task;
-  certifications: Certification[];
-  users: UserProfile[];
-  draggable: boolean;
-  onOpen: () => void;
-}
-
-export function TaskCard({ task, certifications, users, draggable, onOpen }: TaskCardProps) {
+export function TaskCard({ task, certifications, users, draggable, onOpen }: {
+  task: Task; certifications: Certification[]; users: UserProfile[]; draggable: boolean; onOpen: () => void;
+}) {
   const { profile } = useAuth();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    disabled: !draggable,
-  });
-
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, disabled: !draggable });
   const meta = SUBTEAM_META[task.subteam];
   const assignees = users.filter((u) => task.assigneeUids.includes(u.uid));
-  const requiredCerts = certifications.filter((c) =>
-    task.requiredCertificationIds.includes(c.id)
-  );
-
+  const requiredCerts = certifications.filter((c) => task.requiredCertificationIds.includes(c.id));
   const alreadyOn = !!profile && task.assigneeUids.includes(profile.uid);
-
-  const isEligible =
-    !!profile &&
-    (task.requiredCertificationIds.length === 0 ||
-      (task.requireAllCertifications
-        ? task.requiredCertificationIds.every((id) =>
-            profile.certificationIds.includes(id)
-          )
-        : task.requiredCertificationIds.some((id) =>
-            profile.certificationIds.includes(id)
-          )));
-
-  const canClaim =
-    task.assigneeUids.length === 0 &&
-    isEligible &&
+  const isEligible = !!profile && (task.requiredCertificationIds.length === 0 ||
+    (task.requireAllCertifications
+      ? task.requiredCertificationIds.every((id) => profile.certificationIds.includes(id))
+      : task.requiredCertificationIds.some((id) => profile.certificationIds.includes(id))));
+  const canClaim = task.assigneeUids.length === 0 && isEligible &&
     (profile?.role === "student" || profile?.role === "student_leader");
-
   const style = transform
     ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }
     : undefined;
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{ ...style, borderLeftColor: meta.color }}
-      className="relative bg-paper-raised border border-steel-line border-l-4 rounded-sm shadow-sm hover:shadow-md transition-shadow"
-    >
-      <button
-        onClick={onOpen}
-        {...(draggable ? { ...listeners, ...attributes } : {})}
-        className={`w-full text-left p-3 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
-      >
+    <div ref={setNodeRef}
+      style={{ ...style, backgroundColor: `color-mix(in srgb, ${meta.color} 82%, var(--paper-raised))` }}
+      className="relative border border-ink/20 rounded-sm shadow-sm hover:shadow-md transition-shadow text-white">
+      <button onClick={onOpen} {...(draggable ? { ...listeners, ...attributes } : {})}
+        className={`w-full text-left p-3 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}>
         <div className="flex items-start justify-between gap-2">
-          <span className="tracked-label text-[10px] text-steel">{meta.label}</span>
-          <span
-            className="tracked-label text-[10px] font-bold"
-            style={{ color: PRIORITY_MARK[task.priority].color }}
-            title={`${task.priority} priority`}
-          >
+          <span className="tracked-label text-[10px] text-white/80">{meta.label}</span>
+          <span className="tracked-label text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/20"
+            style={{ color: PRIORITY_MARK[task.priority].color }} title={`${task.priority} priority`}>
             {PRIORITY_MARK[task.priority].label}
           </span>
         </div>
-
-        <p className="text-sm font-medium mt-1.5 leading-snug">{task.title}</p>
-
+        <p className="text-sm font-medium mt-1.5 leading-snug text-white">{task.title}</p>
         {requiredCerts.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {requiredCerts.map((c) => (
-              <span
-                key={c.id}
-                className="tracked-label text-[9px] px-1.5 py-0.5 rounded-sm bg-blueprint/10 text-blueprint-deep border border-blueprint/20"
-              >
+              <span key={c.id} className="tracked-label text-[9px] px-1.5 py-0.5 rounded-sm bg-white/90 text-blueprint-deep border border-white">
                 {c.name}
               </span>
             ))}
           </div>
         )}
-
-        <div className="border-t border-dashed border-steel-line mt-2.5 pt-2 flex items-center justify-between gap-2">
-          <span className="text-xs text-steel truncate">
-            {assignees.length > 0
-              ? assignees.map((a) => a.displayName).join(", ")
-              : "Unclaimed"}
+        <div className="border-t border-dashed border-white/35 mt-2.5 pt-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-white/85 truncate">
+            {assignees.length > 0 ? assignees.map((a) => a.displayName).join(", ") : "Unclaimed"}
           </span>
-          <span className="text-[10px] text-steel whitespace-nowrap shrink-0">
-            {task.dueDate
-              ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })}`
+          <span className="text-[10px] text-white/80 whitespace-nowrap shrink-0">
+            {task.dueDate ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
               : formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
           </span>
         </div>
       </button>
-
       {canClaim && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (profile) claimTask(task.id, profile.uid);
-          }}
-          className="w-full text-center tracked-label text-[10px] font-semibold py-1.5 bg-success/10 text-success border-t border-success/30 hover:bg-success/20"
-        >
+        <button onClick={(e) => { e.stopPropagation(); if (profile) claimTask(task.id, profile.uid); }}
+          className="w-full text-center tracked-label text-[10px] font-semibold py-1.5 bg-white/90 text-success border-t border-white hover:bg-white">
           Claim task
         </button>
       )}
-
       {!alreadyOn && !isEligible && task.requiredCertificationIds.length > 0 && (
-        <div className="w-full text-center tracked-label text-[10px] py-1.5 bg-steel/10 text-steel border-t border-steel-line">
+        <div className="w-full text-center tracked-label text-[10px] py-1.5 bg-black/20 text-white/85 border-t border-white/30">
           Cert required
         </div>
       )}

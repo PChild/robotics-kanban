@@ -21,42 +21,28 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({
-  status,
-  tasks,
-  certifications,
-  users,
-  canDrag,
-  onOpenTask,
+  status, tasks, certifications, users, canDrag, onOpenTask,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const meta = STATUS_META[status];
 
   return (
-    <div className="flex flex-col w-full sm:min-w-[260px] sm:flex-1 sm:w-auto sm:shrink-0">
-      <div className="flex items-baseline gap-2 px-1 mb-2">
+    <div className="flex flex-col w-full sm:min-w-[260px] sm:flex-1 sm:w-auto sm:shrink-0 sm:h-[calc(100vh-14rem)] sm:min-h-[360px]">
+      <div className="flex items-baseline gap-2 px-1 py-2 mb-2 sticky top-0 z-20 bg-paper/95 backdrop-blur-sm">
         <span className="tracked-label text-[10px] text-steel">{meta.step}</span>
         <h3 className="tracked-label text-xs font-bold">{meta.label}</h3>
         <span className="text-[10px] text-steel ml-auto">{tasks.length}</span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex-1 rounded p-2 space-y-2 min-h-[120px] border border-dashed transition-colors ${
-          isOver ? "border-blueprint bg-blueprint/5" : "border-steel-line/60"
-        }`}
+        className={`flex-1 rounded p-2 space-y-2 min-h-[120px] border border-dashed transition-colors sm:overflow-y-auto sm:overscroll-contain ${isOver ? "border-blueprint bg-blueprint/5" : "border-steel-line/60"
+          }`}
       >
         {tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            certifications={certifications}
-            users={users}
-            draggable={canDrag(task)}
-            onOpen={() => onOpenTask(task)}
-          />
+          <TaskCard key={task.id} task={task} certifications={certifications} users={users}
+            draggable={canDrag(task)} onOpen={() => onOpenTask(task)} />
         ))}
-        {tasks.length === 0 && (
-          <p className="text-xs text-steel/60 text-center py-6">Nothing here</p>
-        )}
+        {tasks.length === 0 && <p className="text-xs text-steel/60 text-center py-6">Nothing here</p>}
       </div>
     </div>
   );

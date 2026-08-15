@@ -5,5 +5,6 @@ export const SUBTEAM_META: Record<Subteam, { label: string; color: string }> = {
   electrical: { label: "Electrical", color: "var(--elec)" },
   programming: { label: "Programming", color: "var(--prog)" },
   cad: { label: "CAD / Design", color: "var(--cad)" },
-  business: { label: "Business", color: "var(--biz)" },
+  outreach: { label: "Outreach", color: "var(--outreach)" },
+  finance: { label: "Finance", color: "var(--finance)" },
 };

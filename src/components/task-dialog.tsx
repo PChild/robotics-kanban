@@ -18,10 +18,10 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 interface TaskDialogProps {
   mode: "create" | "edit";
   defaultSubteam: Subteam;
-  editableSubteams: Subteam[]; // subteams this user is allowed to assign the task to
+  editableSubteams: Subteam[];
   certifications: Certification[];
   users: UserProfile[];
-  task?: Task; // required when mode === "edit"
+  task?: Task;
   onClose: () => void;
 }
 
@@ -54,14 +54,11 @@ export function TaskDialog({
   const canDelete = mode === "edit" && task && canManageSubteam(task.subteam);
   const readOnly = mode === "edit" && !canManageThisTask;
   const isOnThisTask = !!(task && profile && task.assigneeUids.includes(profile.uid));
-  // Anyone who can manage this task, or is on it themselves, can move it
-  // through statuses directly — this is the non-drag path, which matters a
-  // lot on touch devices where dragging across columns is unreliable.
   const hasStatusControl = mode === "edit" && (canManageThisTask || isOnThisTask);
 
-  // Anyone assignable to this subteam's tasks: coaches (subteam-agnostic) plus
-  // students/leaders on the matching subteam.
-  const assignableUsers = users.filter((u) => u.role === "coach" || u.subteam === subteam);
+  // Assignment is deliberately cross-subteam. Certifications remain the
+  // skill/safety gate for claiming work; roster subteam does not.
+  const assignableUsers = users;
 
   const creator = task ? users.find((u) => u.uid === task.createdByUid) : undefined;
 
@@ -262,7 +259,7 @@ export function TaskDialog({
               />
             </div>
             {assignableUsers.length === 0 && (
-              <p className="text-xs text-steel mt-1">No one on the roster for this subteam yet.</p>
+              <p className="text-xs text-steel mt-1">No one is on the roster yet.</p>
             )}
           </div>
         )}
@@ -272,9 +269,9 @@ export function TaskDialog({
             <p className="text-sm mt-1">
               {task && task.assigneeUids.length > 0
                 ? users
-                    .filter((u) => task.assigneeUids.includes(u.uid))
-                    .map((u) => u.displayName)
-                    .join(", ")
+                  .filter((u) => task.assigneeUids.includes(u.uid))
+                  .map((u) => u.displayName)
+                  .join(", ")
                 : "Unclaimed"}
             </p>
           </div>
@@ -291,11 +288,10 @@ export function TaskDialog({
                   key={c.id}
                   disabled={readOnly}
                   onClick={() => toggleCert(c.id)}
-                  className={`text-xs px-2 py-1 rounded-sm border ${
-                    requiredCertificationIds.includes(c.id)
+                  className={`text-xs px-2 py-1 rounded-sm border ${requiredCertificationIds.includes(c.id)
                       ? "bg-blueprint text-white border-blueprint"
                       : "bg-surface text-steel border-steel-line"
-                  }`}
+                    }`}
                 >
                   {c.name}
                 </button>

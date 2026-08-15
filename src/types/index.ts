@@ -7,14 +7,16 @@ export type Subteam =
   | "electrical"
   | "programming"
   | "cad"
-  | "business";
+  | "outreach"
+  | "finance";
 
 export const SUBTEAMS: Subteam[] = [
   "mechanical",
   "electrical",
   "programming",
   "cad",
-  "business",
+  "outreach",
+  "finance",
 ];
 
 export type TaskStatus = "backlog" | "in_progress" | "review" | "done";
@@ -28,27 +30,22 @@ export const TASK_STATUSES: TaskStatus[] = [
 
 export type Priority = "low" | "medium" | "high";
 
-// A student, student leader, or coach account. Document ID = Firebase Auth uid.
 export interface UserProfile {
   uid: string;
   displayName: string;
   email: string;
   role: Role;
-  // Required for students and student leaders; coaches may span all subteams.
   subteam: Subteam | null;
-  // IDs referencing documents in the certifications collection.
   certificationIds: string[];
-  createdAt: string; // ISO timestamp
-  // True until the student completes their first login and sets a real password.
+  createdAt: string;
   mustResetPassword: boolean;
 }
 
-// A certifiable manufacturing process or skill (e.g. "CNC Mill", "Soldering").
 export interface Certification {
   id: string;
   name: string;
   description: string;
-  subteam: Subteam | null; // null = applies across subteams
+  subteam: Subteam | null;
 }
 
 export type TaskHistoryEventType = "assigned" | "unassigned" | "completed";
@@ -56,7 +53,7 @@ export type TaskHistoryEventType = "assigned" | "unassigned" | "completed";
 export interface TaskHistoryEntry {
   type: TaskHistoryEventType;
   uid: string;
-  at: string; // ISO timestamp
+  at: string;
 }
 
 export interface Task {
@@ -66,8 +63,6 @@ export interface Task {
   subteam: Subteam;
   status: TaskStatus;
   priority: Priority;
-  // Certification IDs a student must hold at least one of (or all of, see
-  // requireAllCertifications) to claim this task.
   requiredCertificationIds: string[];
   requireAllCertifications: boolean;
   assigneeUids: string[];
@@ -75,6 +70,5 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   dueDate: string | null;
-  // Append-only log of assignment and completion events, used for reports.
   history: TaskHistoryEntry[];
 }

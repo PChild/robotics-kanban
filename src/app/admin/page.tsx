@@ -55,9 +55,8 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className={`tracked-label text-xs px-3 py-1.5 rounded-sm border ${
-        active ? "bg-blueprint text-white border-blueprint" : "bg-surface text-steel border-steel-line"
-      }`}
+      className={`tracked-label text-xs px-3 py-1.5 rounded-sm border ${active ? "bg-blueprint text-white border-blueprint" : "bg-surface text-steel border-steel-line"
+        }`}
     >
       {label}
     </button>
@@ -436,6 +435,8 @@ function RosterRow({
     setTimeout(() => setResetSent(false), 4000);
   }
 
+  const actionButton = "text-xs tracked-label border rounded-sm px-2 py-1 transition-colors";
+
   return (
     <tr className="border-b border-steel-line last:border-0">
       <td className="px-3 py-2">{user.displayName}</td>
@@ -470,29 +471,46 @@ function RosterRow({
         )}
       </td>
       <td className="px-3 py-2 text-steel">{certCount}</td>
-      <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-        {editing ? (
-          <>
-            <button onClick={save} className="text-blueprint text-xs tracked-label">
-              Save
-            </button>
-            <button onClick={() => setEditing(false)} className="text-steel text-xs tracked-label">
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => setEditing(true)} className="text-blueprint text-xs tracked-label">
-              Edit
-            </button>
-            <button onClick={resetPassword} className="text-hazard text-xs tracked-label">
-              {resetSent ? "Sent" : "Reset pwd"}
-            </button>
-            <button onClick={remove} className="text-danger text-xs tracked-label">
-              Remove
-            </button>
-          </>
-        )}
+      <td className="px-3 py-2 text-right whitespace-nowrap">
+        <div className="inline-flex gap-1.5">
+          {editing ? (
+            <>
+              <button
+                onClick={save}
+                className={`${actionButton} text-blueprint border-blueprint/40 hover:bg-blueprint/10`}
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className={`${actionButton} text-steel border-steel-line hover:bg-paper`}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setEditing(true)}
+                className={`${actionButton} text-blueprint border-blueprint/40 hover:bg-blueprint/10`}
+              >
+                Edit
+              </button>
+              <button
+                onClick={resetPassword}
+                className={`${actionButton} text-hazard border-hazard/50 hover:bg-hazard/10`}
+              >
+                {resetSent ? "Sent" : "Reset pwd"}
+              </button>
+              <button
+                onClick={remove}
+                className={`${actionButton} text-danger border-danger/50 hover:bg-danger/10`}
+              >
+                Remove
+              </button>
+            </>
+          )}
+        </div>
       </td>
     </tr>
   );
