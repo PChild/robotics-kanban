@@ -21,10 +21,11 @@ export function NavBar() {
       ? [{ href: `/board/${profile.subteam}`, label: "My subteam" }]
       : []),
     { href: "/calendar", label: "Calendar" },
+    ...(isCoach ? [{ href: "/timeclock", label: "Timeclock" }] : []),
     { href: "/my-tasks", label: "My tasks" },
     { href: "/certifications", label: "Certifications" },
     ...(canSeeMetrics ? [{ href: "/metrics", label: "Metrics" }] : []),
-    ...(canSeeMetrics ? [{ href: "/reports", label: "Reports" }] : []),
+    { href: "/reports", label: "Reports" },
     ...(isCoach ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 

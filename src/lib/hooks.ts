@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Task, UserProfile, Certification } from "@/types";
+import type { Task, UserProfile, Certification, TimeEntry, TimeclockPin } from "@/types";
 
 // These use onSnapshot directly (rather than one-shot fetches) so that when
 // one student drags a card, or a coach edits a cert, every open board
@@ -68,4 +68,42 @@ export function useCertifications() {
   }, []);
 
   return { certifications, loading };
+}
+
+// null means all entries (coach); a uid means only that person's entries;
+// undefined waits for the auth profile before opening a Firestore listener.
+export function useTimeEntries(scopeUid: string | null | undefined) {
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (scopeUid === undefined) return;
+    const source = scopeUid
+      ? query(collection(db, "timeEntries"), where("uid", "==", scopeUid))
+      : collection(db, "timeEntries");
+    const unsub = onSnapshot(source, (snap) => {
+      setEntries(
+        snap.docs
+          .map((entry) => entry.data() as TimeEntry)
+          .sort((a, b) => b.clockIn.localeCompare(a.clockIn))
+      );
+      setLoading(false);
+    });
+    return unsub;
+  }, [scopeUid]);
+
+  return { entries, loading };
+}
+
+export function useTimeclockPins(enabled: boolean) {
+  const [pins, setPins] = useState<TimeclockPin[]>([]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return onSnapshot(collection(db, "timeclockPins"), (snap) => {
+      setPins(snap.docs.map((pin) => pin.data() as TimeclockPin));
+    });
+  }, [enabled]);
+
+  return { pins: enabled ? pins : [] };
 }

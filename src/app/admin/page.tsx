@@ -6,7 +6,8 @@ import { auth } from "@/lib/firebase";
 import { AppShell } from "@/components/app-shell";
 import { ModalBackdrop } from "@/components/modal-backdrop";
 import { useAuth } from "@/context/auth-context";
-import { useUsers, useCertifications } from "@/lib/hooks";
+import { useUsers, useCertifications, useTimeclockPins } from "@/lib/hooks";
+import { removeTimeclockPin, setTimeclockPin } from "@/lib/timeclock-actions";
 import {
   createAccount,
   updateUserRoleAndSubteam,
@@ -67,13 +68,14 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
 function RosterTab() {
   const { users } = useUsers();
   const { certifications } = useCertifications();
+  const { pins } = useTimeclockPins(true);
   const [showForm, setShowForm] = useState(false);
   const [showBatchForm, setShowBatchForm] = useState(false);
-  const [lastCreated, setLastCreated] = useState<{ email: string; tempPassword: string } | null>(
+  const [lastCreated, setLastCreated] = useState<{ email: string; tempPassword: string; timeclockPin: string } | null>(
     null
   );
   const [batchResults, setBatchResults] = useState<
-    { name: string; email: string; tempPassword: string; error?: string }[] | null
+    { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[] | null
   >(null);
   const [query, setQuery] = useState("");
 
@@ -110,6 +112,12 @@ function RosterTab() {
             — give this to the student. They&apos;ll be forced to set their own password on first
             login.
           </p>
+          <p className="text-steel mt-2">
+            Timeclock PIN:{" "}
+            <code className="bg-surface px-1.5 py-0.5 rounded border border-steel-line font-mono">
+              {lastCreated.timeclockPin}
+            </code>
+          </p>
           <button
             onClick={() => setLastCreated(null)}
             className="text-xs text-steel underline mt-2"
@@ -129,13 +137,14 @@ function RosterTab() {
               <button
                 onClick={() =>
                   downloadCsv(
-                    "temp-passwords-" + new Date().toISOString().slice(0, 10) + ".csv",
+                    "account-credentials-" + new Date().toISOString().slice(0, 10) + ".csv",
                     [
-                      ["Name", "Email", "Temp password", "Status"],
+                      ["Name", "Email", "Temp password", "Timeclock PIN", "Status"],
                       ...batchResults.map((r) => [
                         r.name,
                         r.email,
                         r.tempPassword,
+                        r.timeclockPin,
                         r.error ? "Failed: " + r.error : "Created",
                       ]),
                     ]
@@ -160,6 +169,7 @@ function RosterTab() {
                   <th className="pr-3 py-1">Name</th>
                   <th className="pr-3 py-1">Email</th>
                   <th className="pr-3 py-1">Temp password</th>
+                  <th className="pr-3 py-1">Timeclock PIN</th>
                 </tr>
               </thead>
               <tbody>
@@ -170,6 +180,7 @@ function RosterTab() {
                     <td className="pr-3 py-1 font-mono">
                       {r.error ? <span className="text-danger">{r.error}</span> : r.tempPassword}
                     </td>
+                    <td className="pr-3 py-1 font-mono">{r.error ? "-" : r.timeclockPin}</td>
                   </tr>
                 ))}
               </tbody>
@@ -194,16 +205,22 @@ function RosterTab() {
               <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2">Subteam</th>
               <th className="px-3 py-2">Certs</th>
+              <th className="px-3 py-2">Timeclock PIN</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.map((u) => (
-              <RosterRow key={u.uid} user={u} certCount={u.certificationIds.length} />
+              <RosterRow
+                key={`${u.uid}-${pins.find((pin) => pin.uid === u.uid)?.pin ?? ""}`}
+                user={u}
+                certCount={u.certificationIds.length}
+                savedPin={pins.find((pin) => pin.uid === u.uid)?.pin ?? ""}
+              />
             ))}
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-steel text-sm">
+                <td colSpan={7} className="px-3 py-6 text-center text-steel text-sm">
                   No accounts match &quot;{query}&quot;.
                 </td>
               </tr>
@@ -216,8 +233,8 @@ function RosterTab() {
         <NewAccountDialog
           certifications={certifications}
           onClose={() => setShowForm(false)}
-          onCreated={(email, tempPassword) => {
-            setLastCreated({ email, tempPassword });
+          onCreated={(email, tempPassword, timeclockPin) => {
+            setLastCreated({ email, tempPassword, timeclockPin });
             setShowForm(false);
           }}
         />
@@ -249,7 +266,7 @@ function BatchImportDialog({
   onDone,
 }: {
   onClose: () => void;
-  onDone: (results: { name: string; email: string; tempPassword: string; error?: string }[]) => void;
+  onDone: (results: { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[]) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvRow[]>([]);
@@ -303,19 +320,19 @@ function BatchImportDialog({
   async function handleImport() {
     setImporting(true);
     setProgress(0);
-    const results: { name: string; email: string; tempPassword: string; error?: string }[] = [];
+    const results: { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[] = [];
     for (const row of validRows) {
       try {
-        const { tempPassword } = await createAccount({
+        const { tempPassword, timeclockPin } = await createAccount({
           displayName: row.name.trim(),
           email: row.email.trim(),
           role: row.role as Role,
           subteam: row.role === "coach" ? null : (row.subteam as Subteam),
         });
-        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword });
+        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword, timeclockPin });
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown error";
-        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword: "-", error: message });
+        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword: "-", timeclockPin: "-", error: message });
       }
       setProgress((p) => p + 1);
     }
@@ -407,25 +424,49 @@ function BatchImportDialog({
 function RosterRow({
   user,
   certCount,
+  savedPin,
 }: {
   user: import("@/types").UserProfile;
   certCount: number;
+  savedPin: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState<Role>(user.role);
   const [subteam, setSubteam] = useState<Subteam | "">(user.subteam ?? "");
+  const [pin, setPin] = useState(savedPin);
   const [resetSent, setResetSent] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function save() {
-    await updateUserRoleAndSubteam(user.uid, {
-      role,
-      subteam: role === "coach" ? null : (subteam as Subteam) || null,
-    });
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await updateUserRoleAndSubteam(user.uid, {
+        role,
+        subteam: role === "coach" ? null : (subteam as Subteam) || null,
+      });
+      if (pin) await setTimeclockPin(user.uid, pin);
+      else if (savedPin) await removeTimeclockPin(user.uid);
+      setEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save this account.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelEditing() {
+    setRole(user.role);
+    setSubteam(user.subteam ?? "");
+    setPin(savedPin);
+    setSaveError(null);
     setEditing(false);
   }
 
   async function remove() {
     if (!confirm(`Remove ${user.displayName}'s access? This can't be undone here.`)) return;
+    await removeTimeclockPin(user.uid);
     await deleteUserProfile(user.uid);
   }
 
@@ -472,18 +513,36 @@ function RosterRow({
         )}
       </td>
       <td className="px-3 py-2 text-steel">{certCount}</td>
+      <td className="px-3 py-2">
+        {editing ? (
+          <div>
+            <input
+              className="input w-20 py-1 text-center font-mono"
+              value={pin}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 3))}
+              inputMode="numeric"
+              placeholder="None"
+              aria-label={`Timeclock PIN for ${user.displayName}`}
+            />
+            {saveError && <p className="text-[10px] text-danger mt-1 max-w-40">{saveError}</p>}
+          </div>
+        ) : (
+          <span className={savedPin ? "font-mono" : "text-steel"}>{savedPin || "Not set"}</span>
+        )}
+      </td>
       <td className="px-3 py-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1.5">
           {editing ? (
             <>
               <button
                 onClick={save}
+                disabled={saving}
                 className={`${actionButton} text-blueprint border-blueprint/40 hover:bg-blueprint/10`}
               >
-                Save
+                {saving ? "Saving…" : "Save"}
               </button>
               <button
-                onClick={() => setEditing(false)}
+                onClick={cancelEditing}
                 className={`${actionButton} text-steel border-steel-line hover:bg-paper`}
               >
                 Cancel
@@ -524,7 +583,7 @@ function NewAccountDialog({
 }: {
   certifications: import("@/types").Certification[];
   onClose: () => void;
-  onCreated: (email: string, tempPassword: string) => void;
+  onCreated: (email: string, tempPassword: string, timeclockPin: string) => void;
 }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -539,13 +598,13 @@ function NewAccountDialog({
     setError(null);
     setSubmitting(true);
     try {
-      const { tempPassword } = await createAccount({
+      const { tempPassword, timeclockPin } = await createAccount({
         displayName,
         email,
         role,
         subteam: role === "coach" ? null : subteam,
       });
-      onCreated(email, tempPassword);
+      onCreated(email, tempPassword, timeclockPin);
     } catch (err) {
       const code = (err as { code?: string } | undefined)?.code ?? "";
       const message = err instanceof Error ? err.message : String(err);

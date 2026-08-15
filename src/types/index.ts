@@ -99,3 +99,22 @@ export interface Task {
   dueDate: string | null;
   history: TaskHistoryEntry[];
 }
+
+export type TimeclockActivity = "shop" | "outreach";
+
+export interface TimeEntry {
+  id: string;
+  uid: string;
+  activity: TimeclockActivity;
+  activityName: string;
+  clockIn: string;
+  clockOut: string | null;
+  clockedInByUid: string;
+  clockedOutByUid: string | null;
+}
+
+export interface TimeclockPin {
+  uid: string;
+  pin: string;
+  updatedAt: string;
+}

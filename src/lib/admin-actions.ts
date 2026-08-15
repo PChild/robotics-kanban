@@ -8,6 +8,7 @@ import {
 import { doc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import app, { db } from "@/lib/firebase";
 import type { Role, Subteam, UserProfile, Certification } from "@/types";
+import { assignAvailableTimeclockPin, removeTimeclockPin } from "@/lib/timeclock-actions";
 
 function randomTempPassword() {
   // Readable-ish temp password: e.g. "shop-4821-forge". Coach hands this to
@@ -55,22 +56,23 @@ export async function createAccount(input: CreateAccountInput) {
       mustResetPassword: true,
     };
 
+    let timeclockPin: string;
     try {
       // Written with the coach's own (still-authenticated, main-app)
-      // Firestore instance, so this write is subject to the normal security
-      // rules — it'll fail with 'permission-denied' if firestore.rules
-      // hasn't been published yet, or the coach's own profile doc is
-      // missing/misconfigured.
+      // Firestore instance, so these writes are subject to the normal rules.
       await setDoc(doc(db, "users", uid), profile);
+      timeclockPin = await assignAvailableTimeclockPin(uid);
     } catch (firestoreError) {
-      // Don't leave an orphaned Auth account with no profile behind — clean
-      // it up so retrying doesn't hit "email already in use".
+      // Account creation is all-or-nothing from the UI's perspective. Remove
+      // any partial PIN/profile/Auth records so retrying is safe.
+      await removeTimeclockPin(uid).catch(() => {});
+      await deleteDoc(doc(db, "users", uid)).catch(() => {});
       await deleteUser(cred.user).catch(() => {});
       throw firestoreError;
     }
 
-    await secondarySignOut(secondaryAuth);
-    return { uid, tempPassword };
+    await secondarySignOut(secondaryAuth).catch(() => {});
+    return { uid, tempPassword, timeclockPin };
   } finally {
     await deleteApp(secondaryApp);
   }

@@ -199,7 +199,7 @@ function CalendarTask({ task, onClick, compact = false }: { task: Task; onClick:
           task.priority === "high"
             ? "bg-danger text-white"
             : task.priority === "medium"
-              ? "bg-hazard text-ink"
+              ? "bg-hazard text-[#14181c]"
               : "bg-black/20 text-white"
         }`}>
           {PRIORITY_LABEL[task.priority]}

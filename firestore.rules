@@ -59,6 +59,25 @@ service cloud.firestore {
       allow write: if isCoach();
     }
 
+    // Short kiosk PINs are intentionally kept separate from user profiles so
+    // students cannot read one another's codes. The kiosk runs in a coach's
+    // authenticated session.
+    match /timeclockPins/{uid} {
+      allow read, write: if isCoach();
+    }
+
+    match /timeEntries/{entryId} {
+      allow read: if isCoach() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isCoach()
+        && request.resource.data.clockedInByUid == request.auth.uid
+        && request.resource.data.clockOut == null;
+      allow update: if isCoach()
+        && resource.data.clockOut == null
+        && request.resource.data.clockedOutByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clockOut', 'clockedOutByUid']);
+      allow delete: if isCoach();
+    }
+
     // --- tasks ---
     match /tasks/{taskId} {
       allow read: if isSignedIn();
