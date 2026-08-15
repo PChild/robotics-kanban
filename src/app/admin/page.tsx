@@ -20,6 +20,14 @@ import { SUBTEAM_META } from "@/lib/subteam-meta";
 import { parseCsv, downloadCsv } from "@/lib/csv";
 import { SUBTEAMS, type Role, type Subteam } from "@/types";
 
+interface AccountCredentials {
+  name: string;
+  email: string;
+  tempPassword: string;
+  timeclockPin: string;
+  error?: string;
+}
+
 export default function AdminPage() {
   const { profile } = useAuth();
   const [tab, setTab] = useState<"roster" | "certifications">("roster");
@@ -71,12 +79,8 @@ function RosterTab() {
   const { pins } = useTimeclockPins(true);
   const [showForm, setShowForm] = useState(false);
   const [showBatchForm, setShowBatchForm] = useState(false);
-  const [lastCreated, setLastCreated] = useState<{ email: string; tempPassword: string; timeclockPin: string } | null>(
-    null
-  );
-  const [batchResults, setBatchResults] = useState<
-    { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[] | null
-  >(null);
+  const [lastCreated, setLastCreated] = useState<AccountCredentials | null>(null);
+  const [batchResults, setBatchResults] = useState<AccountCredentials[] | null>(null);
   const [query, setQuery] = useState("");
 
   const filteredUsers = users.filter(
@@ -118,12 +122,22 @@ function RosterTab() {
               {lastCreated.timeclockPin}
             </code>
           </p>
-          <button
-            onClick={() => setLastCreated(null)}
-            className="text-xs text-steel underline mt-2"
-          >
-            Dismiss
-          </button>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => emailAccountCredentials(lastCreated)}
+              className="btn-primary text-xs"
+            >
+              Email login details
+            </button>
+            <button
+              type="button"
+              onClick={() => setLastCreated(null)}
+              className="text-xs text-steel underline"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -170,6 +184,7 @@ function RosterTab() {
                   <th className="pr-3 py-1">Email</th>
                   <th className="pr-3 py-1">Temp password</th>
                   <th className="pr-3 py-1">Timeclock PIN</th>
+                  <th className="py-1"></th>
                 </tr>
               </thead>
               <tbody>
@@ -181,6 +196,17 @@ function RosterTab() {
                       {r.error ? <span className="text-danger">{r.error}</span> : r.tempPassword}
                     </td>
                     <td className="pr-3 py-1 font-mono">{r.error ? "-" : r.timeclockPin}</td>
+                    <td className="py-1 text-right">
+                      {!r.error && (
+                        <button
+                          type="button"
+                          onClick={() => emailAccountCredentials(r)}
+                          className="text-blueprint font-sans font-medium hover:underline"
+                        >
+                          Email
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -233,8 +259,8 @@ function RosterTab() {
         <NewAccountDialog
           certifications={certifications}
           onClose={() => setShowForm(false)}
-          onCreated={(email, tempPassword, timeclockPin) => {
-            setLastCreated({ email, tempPassword, timeclockPin });
+          onCreated={(name, email, tempPassword, timeclockPin) => {
+            setLastCreated({ name, email, tempPassword, timeclockPin });
             setShowForm(false);
           }}
         />
@@ -261,12 +287,35 @@ interface CsvRow {
   [key: string]: string;
 }
 
+function emailAccountCredentials(credentials: AccountCredentials) {
+  const siteUrl = new URL(window.location.href);
+  siteUrl.pathname = siteUrl.pathname.replace(/\/admin\/?$/, "/");
+  siteUrl.search = "";
+  siteUrl.hash = "";
+
+  const subject = "Your Robotics Team Board account";
+  const body = [
+    `Hi ${credentials.name},`,
+    "",
+    "Your Robotics Team Board account is ready.",
+    "",
+    `Site: ${siteUrl.toString()}`,
+    `Sign-in email: ${credentials.email}`,
+    `Temporary password: ${credentials.tempPassword}`,
+    `Timeclock PIN: ${credentials.timeclockPin}`,
+    "",
+    "The first time you sign in, you will be asked to choose a new password. Keep your timeclock PIN private and ask a coach if you need help.",
+  ].join("\n");
+
+  window.location.href = `mailto:${encodeURIComponent(credentials.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function BatchImportDialog({
   onClose,
   onDone,
 }: {
   onClose: () => void;
-  onDone: (results: { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[]) => void;
+  onDone: (results: AccountCredentials[]) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<CsvRow[]>([]);
@@ -320,7 +369,7 @@ function BatchImportDialog({
   async function handleImport() {
     setImporting(true);
     setProgress(0);
-    const results: { name: string; email: string; tempPassword: string; timeclockPin: string; error?: string }[] = [];
+    const results: AccountCredentials[] = [];
     for (const row of validRows) {
       try {
         const { tempPassword, timeclockPin } = await createAccount({
@@ -583,7 +632,7 @@ function NewAccountDialog({
 }: {
   certifications: import("@/types").Certification[];
   onClose: () => void;
-  onCreated: (email: string, tempPassword: string, timeclockPin: string) => void;
+  onCreated: (name: string, email: string, tempPassword: string, timeclockPin: string) => void;
 }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -604,7 +653,7 @@ function NewAccountDialog({
         role,
         subteam: role === "coach" ? null : subteam,
       });
-      onCreated(email, tempPassword, timeclockPin);
+      onCreated(displayName, email, tempPassword, timeclockPin);
     } catch (err) {
       const code = (err as { code?: string } | undefined)?.code ?? "";
       const message = err instanceof Error ? err.message : String(err);

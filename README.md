@@ -1,46 +1,160 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Robotics Team Board
 
-## Getting Started
+A team operations app for managing robotics projects, student assignments, certifications, attendance, and reporting. It is built as a static Next.js application and uses Firebase Authentication, Cloud Firestore, and Firebase Storage for its backend.
 
-First, run the development server:
+## What the app does
+
+- Kanban boards for the full team and individual subteams
+- Certification-aware task assignment and self-assignment
+- Task priorities, due dates, points of contact, comments, and file attachments
+- Stuck-task reasons and prerequisite task relationships
+- Calendar and embedded Gantt views for due dates and dependencies
+- Student and coach certification management
+- Metrics for task throughput, workload, and subteam activity
+- Individual reports containing task history, certifications, and attendance hours
+- CSV exports for team summaries, task history, and attendance
+- Coach-managed timeclock with shop and outreach sessions
+- Full-screen kiosk mode using automatically assigned 1–3 digit PINs
+- Coach tools for signing out one person or everyone who forgot to clock out
+- Coach roster administration, individual account creation, CSV batch imports, and prepared credential emails
+
+## Roles and permissions
+
+| Role | Access |
+| --- | --- |
+| Coach | Manages all tasks, accounts, PINs, certifications, reports, metrics, and timeclock sessions. Coaches can also launch kiosk mode. |
+| Student leader | Manages tasks and student certifications for their own subteam. Their reports are limited to their own information. |
+| Student | Can view boards, join eligible tasks, update assigned tasks, add comments or attachments, and view their own certifications and report. |
+
+The interface hides unavailable actions, but the actual authorization boundary is enforced by `firestore.rules` and `storage.rules`.
+
+## Technology
+
+- Next.js 16 with the App Router and static export
+- React 19 and TypeScript
+- Tailwind CSS 4
+- Firebase Authentication, Cloud Firestore, and Firebase Storage
+- dnd-kit for board interactions
+- Recharts for metrics
+- date-fns for scheduling and reports
+
+## Local setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Firebase
+
+Create a Firebase project and web app, then enable:
+
+- Authentication with the Email/Password provider
+- Cloud Firestore
+- Firebase Storage
+
+Create `.env.local` in the project root using the Firebase web configuration:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+```
+
+These values identify the Firebase web app and are safe to include in a client build. Firebase security rules, not secrecy of these values, protect application data.
+
+### 3. Deploy the security rules
+
+Install and authenticate the Firebase CLI if needed, then select the correct Firebase project and deploy both rule files:
+
+```bash
+npx firebase-tools login
+npx firebase-tools use --add
+npx firebase-tools deploy --only firestore:rules,storage
+```
+
+Task attachments are limited to 20 MB per file by the Storage rules.
+
+### 4. Create the first coach
+
+There is deliberately no public account-registration page. The first coach must be bootstrapped from the Firebase console:
+
+1. In **Authentication → Users**, create an email/password user.
+2. Copy the new user's UID.
+3. In Firestore, create `users/{uid}` with the following fields:
+
+```json
+{
+  "uid": "the-authentication-uid",
+  "displayName": "Coach Name",
+  "email": "coach@example.com",
+  "role": "coach",
+  "subteam": null,
+  "certificationIds": [],
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "mustResetPassword": false
+}
+```
+
+After signing in, that coach can create the remaining accounts from **Admin → Roster**. New accounts receive a temporary password and an available timeclock PIN automatically.
+
+### 5. Start the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Firebase rules
+## Available commands
 
-Task attachments use Firebase Storage. Deploy both rule files when releasing changes:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the local development server |
+| `npm run lint` | Run ESLint |
+| `npm run build` | Type-check and generate the static site in `out/` |
+| `npm run start` | Start Next.js in server mode; the deployed app normally uses the static export instead |
 
-```bash
-firebase deploy --only firestore:rules,storage
+## Firebase data
+
+The app currently uses these top-level collections:
+
+- `users` — profiles, roles, subteams, and certifications
+- `tasks` — task details, assignment history, comments, attachments, and dependencies
+- `certifications` — coach-managed certification definitions
+- `subteams` — optional coach-managed subteam reference data
+- `timeclockPins` — coach-only kiosk PIN records kept separate from public profiles
+- `timeEntries` — shop and outreach attendance sessions
+
+Uploaded task files are stored under `task-attachments/{taskId}/...` in Firebase Storage.
+
+## Timeclock and kiosk security
+
+Only a coach can launch the kiosk. Kiosk PINs identify which team member is clocking in or out; they are not Firebase passwords and cannot be used to sign into the main application.
+
+The kiosk runs inside the authenticated coach session, so exiting kiosk mode requires the current coach's password. A safe-sign-out option is also available and returns the device to the login screen. Firestore rules restrict all time-entry writes and PIN reads to coaches.
+
+## Deploying to GitHub Pages
+
+The project is configured for static export and includes `.github/workflows/deploy.yml`. Pushes to `main` build and deploy the `out/` directory.
+
+Add each `NEXT_PUBLIC_FIREBASE_*` value listed above as a GitHub Actions repository secret, then configure **Settings → Pages** to use **GitHub Actions** as the deployment source.
+
+The GitHub Pages base path is derived from the repository name in `next.config.ts`:
+
+```ts
+const repoName = "robotics-kanban";
 ```
 
-The Storage bucket must also be enabled in the Firebase project.
+Update that value if the repository is renamed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Operational notes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Removing someone from the Admin roster deletes their Firestore profile but not their Firebase Authentication record. Delete the Authentication user from the Firebase console when access must be fully revoked.
+- Changes to `firestore.rules` or `storage.rules` are not applied by the GitHub Pages deployment. Deploy Firebase rules separately.
+- Firebase Storage may require the Firebase project to use the Blaze plan, even when usage remains within no-cost quotas.
+- Unknown routes redirect to the app home page, which then sends authenticated users to the board and signed-out users to login.
