@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -13,6 +13,7 @@ import {
   Cell,
 } from "recharts";
 import { AppShell } from "@/components/app-shell";
+import { useAuth } from "@/context/auth-context";
 import { useTasks, useUsers, useCertifications } from "@/lib/hooks";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
 import { SUBTEAMS, TASK_STATUSES, type TaskStatus } from "@/types";
@@ -31,10 +32,14 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   done: "Done",
 };
 
+const WORKLOAD_DEFAULT_LIMIT = 15;
+
 export default function MetricsPage() {
+  const { profile } = useAuth();
   const { tasks } = useTasks();
   const { users } = useUsers();
   const { certifications } = useCertifications();
+  const [showAllWorkload, setShowAllWorkload] = useState(false);
 
   const students = useMemo(() => users.filter((u) => u.role !== "coach"), [users]);
 
@@ -58,15 +63,16 @@ export default function MetricsPage() {
     [tasks]
   );
 
-  const workload = useMemo(() => {
+  const fullWorkload = useMemo(() => {
     return students
       .map((u) => ({
         name: u.displayName,
         active: tasks.filter((t) => t.assigneeUids.includes(u.uid) && t.status !== "done").length,
       }))
-      .sort((a, b) => b.active - a.active)
-      .slice(0, 12);
+      .sort((a, b) => b.active - a.active);
   }, [students, tasks]);
+
+  const workload = showAllWorkload ? fullWorkload : fullWorkload.slice(0, WORKLOAD_DEFAULT_LIMIT);
 
   const certCoverage = useMemo(
     () =>
@@ -87,6 +93,14 @@ export default function MetricsPage() {
     }, 0);
     return (totalDays / done.length).toFixed(1);
   }, [tasks]);
+
+  if (profile && profile.role === "student") {
+    return (
+      <AppShell>
+        <p className="text-sm text-steel">Metrics are visible to coaches and student leaders.</p>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -118,10 +132,20 @@ export default function MetricsPage() {
       </ChartCard>
 
       <ChartCard title="Active workload per student">
-        <p className="text-xs text-steel mb-2">
-          Tasks currently claimed and not yet done — helps spot who&apos;s overloaded or idle.
-        </p>
-        <ResponsiveContainer width="100%" height={Math.max(200, workload.length * 28)}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-steel">
+            Tasks currently claimed and not yet done — helps spot who&apos;s overloaded or idle.
+          </p>
+          {fullWorkload.length > WORKLOAD_DEFAULT_LIMIT && (
+            <button
+              onClick={() => setShowAllWorkload((v) => !v)}
+              className="tracked-label text-[10px] text-blueprint shrink-0 ml-3"
+            >
+              {showAllWorkload ? "Show top 15" : `Show all ${fullWorkload.length}`}
+            </button>
+          )}
+        </div>
+        <ResponsiveContainer width="100%" height={Math.max(200, workload.length * 24)}>
           <BarChart data={workload} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--steel-line)" />
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />

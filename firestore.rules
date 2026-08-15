@@ -76,7 +76,7 @@ service cloud.firestore {
               request.resource.data.assigneeUids.hasAll(resource.data.assigneeUids) &&
               request.resource.data.assigneeUids.hasAll([request.auth.uid]) &&
               request.resource.data.assigneeUids.size() == resource.data.assigneeUids.size() + 1 &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt']) &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt', 'history']) &&
               (
                 resource.data.requiredCertificationIds.size() == 0 ||
                 (resource.data.requireAllCertifications
@@ -90,14 +90,14 @@ service cloud.firestore {
               resource.data.assigneeUids.hasAny([request.auth.uid]) &&
               !request.resource.data.assigneeUids.hasAny([request.auth.uid]) &&
               request.resource.data.assigneeUids.size() == resource.data.assigneeUids.size() - 1 &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt'])
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUids', 'updatedAt', 'history'])
             )
             ||
             // Move a card you're already on: only status/updatedAt may change.
             (
               resource.data.assigneeUids.hasAny([request.auth.uid]) &&
               request.resource.data.assigneeUids == resource.data.assigneeUids &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'history'])
             )
           )
         );

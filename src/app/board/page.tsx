@@ -68,7 +68,7 @@ function FilterChip({
     <button
       onClick={onClick}
       className={`tracked-label text-[10px] px-2.5 py-1.5 rounded-sm border flex items-center gap-1.5 ${
-        active ? "bg-ink text-white border-ink" : "bg-white text-steel border-steel-line"
+        active ? "bg-blueprint text-white border-blueprint" : "bg-surface text-steel border-steel-line"
       }`}
     >
       {color && (

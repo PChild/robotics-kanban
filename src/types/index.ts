@@ -51,6 +51,14 @@ export interface Certification {
   subteam: Subteam | null; // null = applies across subteams
 }
 
+export type TaskHistoryEventType = "assigned" | "unassigned" | "completed";
+
+export interface TaskHistoryEntry {
+  type: TaskHistoryEventType;
+  uid: string;
+  at: string; // ISO timestamp
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -67,4 +75,6 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   dueDate: string | null;
+  // Append-only log of assignment and completion events, used for reports.
+  history: TaskHistoryEntry[];
 }

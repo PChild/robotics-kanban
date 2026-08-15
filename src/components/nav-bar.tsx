@@ -1,14 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
 export function NavBar() {
-  const { profile, isCoach, signOut } = useAuth();
+  const { profile, isCoach, isStudentLeader, signOut } = useAuth();
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (!profile) return null;
+
+  const canSeeMetrics = isCoach || isStudentLeader;
 
   const links = [
     { href: "/board", label: "All boards" },
@@ -17,36 +22,42 @@ export function NavBar() {
       : []),
     { href: "/my-tasks", label: "My tasks" },
     { href: "/certifications", label: "Certifications" },
-    { href: "/metrics", label: "Metrics" },
+    ...(canSeeMetrics ? [{ href: "/metrics", label: "Metrics" }] : []),
+    ...(canSeeMetrics ? [{ href: "/reports", label: "Reports" }] : []),
     ...(isCoach ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
+  function isActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
   return (
     <header className="border-b border-steel-line bg-paper-raised">
-      <div className="max-w-[1800px] mx-auto px-6 flex items-center h-14 gap-6">
-        <span className="tracked-label text-sm font-bold text-blueprint-deep whitespace-nowrap">
-          Team board
-        </span>
-        <nav className="flex items-center gap-1 flex-1 overflow-x-auto">
-          {links.map((l) => {
-            const active = pathname === l.href || pathname.startsWith(l.href + "/");
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`tracked-label text-xs px-3 py-2 rounded whitespace-nowrap ${
-                  active
-                    ? "bg-blueprint text-white"
-                    : "text-steel hover:text-ink"
-                }`}
-              >
-                {l.label}
-              </Link>
-            );
-          })}
+      <div className="w-full px-4 sm:px-6 flex items-center h-14 gap-3">
+        <button
+          onClick={() => setMobileOpen((v) => !v)}
+          className="md:hidden text-steel p-1 -ml-1"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        >
+          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
+        <nav className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto">
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`tracked-label text-xs px-3 py-2 rounded whitespace-nowrap ${
+                isActive(l.href) ? "bg-blueprint text-white" : "text-steel hover:text-ink"
+              }`}
+            >
+              {l.label}
+            </Link>
+          ))}
         </nav>
-        <div className="flex items-center gap-3 whitespace-nowrap">
-          <span className="text-sm text-steel">
+
+        <div className="flex items-center gap-3 whitespace-nowrap ml-auto md:ml-0">
+          <span className="text-sm text-steel hidden sm:inline">
             {profile.displayName}
             <span className="tracked-label text-[10px] ml-2 text-blueprint">
               {profile.role.replace("_", " ")}
@@ -57,6 +68,26 @@ export function NavBar() {
           </button>
         </div>
       </div>
+
+      {mobileOpen && (
+        <nav className="md:hidden border-t border-steel-line bg-paper-raised px-2 py-2">
+          <p className="text-xs text-steel px-2 py-1 sm:hidden">
+            {profile.displayName} · {profile.role.replace("_", " ")}
+          </p>
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setMobileOpen(false)}
+              className={`block tracked-label text-xs px-3 py-2.5 rounded ${
+                isActive(l.href) ? "bg-blueprint text-white" : "text-steel"
+              }`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }

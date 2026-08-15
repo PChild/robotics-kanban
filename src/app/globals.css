@@ -4,6 +4,7 @@
   --ink: #14181c;
   --paper: #e9eae4;
   --paper-raised: #f6f6f2;
+  --surface: #ffffff;
   --blueprint: #1e5f8c;
   --blueprint-deep: #123b57;
   --hazard: #e0a23a;
@@ -20,10 +21,33 @@
   --biz: #a9603f;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9eae6;
+    --paper: #14171a;
+    --paper-raised: #1c2024;
+    --surface: #22262b;
+    --blueprint: #4d93c4;
+    --blueprint-deep: #2e5f82;
+    --hazard: #e3ac47;
+    --steel: #9199a1;
+    --steel-line: #33383d;
+    --success: #4fae74;
+    --danger: #d1584c;
+
+    --mech: #6a8bb3;
+    --elec: #e3ac47;
+    --prog: #45b294;
+    --cad: #a596c4;
+    --biz: #c08558;
+  }
+}
+
 @theme inline {
   --color-ink: var(--ink);
   --color-paper: var(--paper);
   --color-paper-raised: var(--paper-raised);
+  --color-surface: var(--surface);
   --color-blueprint: var(--blueprint);
   --color-blueprint-deep: var(--blueprint-deep);
   --color-hazard: var(--hazard);
@@ -65,7 +89,8 @@ body {
 .input {
   width: 100%;
   border: 1px solid var(--steel-line);
-  background: white;
+  background: var(--surface);
+  color: var(--ink);
   border-radius: 4px;
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;

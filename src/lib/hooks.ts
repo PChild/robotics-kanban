@@ -16,7 +16,16 @@ export function useTasks() {
   useEffect(() => {
     const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
-      setTasks(snap.docs.map((d) => d.data() as Task));
+      setTasks(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            ...data,
+            assigneeUids: data.assigneeUids ?? [],
+            history: data.history ?? [],
+          } as Task;
+        })
+      );
       setLoading(false);
     });
     return unsub;

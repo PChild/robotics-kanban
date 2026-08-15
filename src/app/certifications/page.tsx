@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/context/auth-context";
 import { useUsers, useCertifications } from "@/lib/hooks";
@@ -74,15 +75,14 @@ function ManageGrid() {
   const { profile, isCoach } = useAuth();
   const { users } = useUsers();
   const { certifications } = useCertifications();
+  const [query, setQuery] = useState("");
 
   const students = users
     .filter((u) => u.role !== "coach")
     .filter((u) => isCoach || u.subteam === profile?.subteam)
+    .filter((u) => u.displayName.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-  if (students.length === 0) {
-    return <p className="text-sm text-steel">No students on your roster yet.</p>;
-  }
   if (certifications.length === 0) {
     return (
       <p className="text-sm text-steel">
@@ -100,51 +100,66 @@ function ManageGrid() {
   }
 
   return (
-    <div className="bg-paper-raised border border-steel-line rounded overflow-x-auto">
-      <table className="text-sm min-w-full">
-        <thead className="bg-paper border-b border-steel-line">
-          <tr>
-            <th className="text-left px-3 py-2 tracked-label text-[10px] text-steel sticky left-0 bg-paper">
-              Student
-            </th>
-            {certifications.map((c) => (
-              <th key={c.id} className="px-3 py-2 tracked-label text-[10px] text-steel whitespace-nowrap">
-                {c.name}
+    <div>
+      <input
+        className="input mb-3 max-w-xs"
+        placeholder="Search by name…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <div className="bg-paper-raised border border-steel-line rounded overflow-auto max-h-[70vh]">
+        <table className="text-sm min-w-full">
+          <thead className="bg-paper border-b border-steel-line sticky top-0 z-10">
+            <tr>
+              <th className="text-left px-3 py-2 tracked-label text-[10px] text-steel sticky left-0 bg-paper">
+                Student
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((u) => (
-            <tr key={u.uid} className="border-b border-steel-line last:border-0">
-              <td className="px-3 py-2 sticky left-0 bg-paper-raised whitespace-nowrap">
-                <p className="font-medium">{u.displayName}</p>
-                <p className="text-[10px] text-steel">
-                  {u.subteam ? SUBTEAM_META[u.subteam].label : "—"}
-                </p>
-              </td>
-              {certifications.map((c) => {
-                const held = u.certificationIds.includes(c.id);
-                return (
-                  <td key={c.id} className="px-3 py-2 text-center">
-                    <button
-                      onClick={() => toggle(u, c)}
-                      className={`w-6 h-6 rounded-sm border text-xs ${
-                        held
-                          ? "bg-success text-white border-success"
-                          : "bg-white text-steel border-steel-line hover:border-steel"
-                      }`}
-                      title={held ? `Revoke ${c.name}` : `Grant ${c.name}`}
-                    >
-                      {held ? "✓" : ""}
-                    </button>
-                  </td>
-                );
-              })}
+              {certifications.map((c) => (
+                <th key={c.id} className="px-3 py-2 tracked-label text-[10px] text-steel whitespace-nowrap">
+                  {c.name}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {students.map((u) => (
+              <tr key={u.uid} className="border-b border-steel-line last:border-0">
+                <td className="px-3 py-2 sticky left-0 bg-paper-raised whitespace-nowrap">
+                  <p className="font-medium">{u.displayName}</p>
+                  <p className="text-[10px] text-steel">
+                    {u.subteam ? SUBTEAM_META[u.subteam].label : "—"}
+                  </p>
+                </td>
+                {certifications.map((c) => {
+                  const held = u.certificationIds.includes(c.id);
+                  return (
+                    <td key={c.id} className="px-3 py-2 text-center">
+                      <button
+                        onClick={() => toggle(u, c)}
+                        className={`w-6 h-6 rounded-sm border text-xs ${
+                          held
+                            ? "bg-success text-white border-success"
+                            : "bg-surface text-steel border-steel-line hover:border-steel"
+                        }`}
+                        title={held ? `Revoke ${c.name}` : `Grant ${c.name}`}
+                      >
+                        {held ? "✓" : ""}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {students.length === 0 && (
+              <tr>
+                <td colSpan={certifications.length + 1} className="px-3 py-6 text-center text-steel text-sm">
+                  No students match &quot;{query}&quot;.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

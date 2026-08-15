@@ -30,7 +30,7 @@ export default function MyTasksPage() {
   const eligibleOpenTasks = useMemo(() => {
     if (!profile) return [];
     return tasks.filter((t) => {
-      if (t.assigneeUids.includes(profile.uid)) return false;
+      if (t.assigneeUids.length > 0) return false;
       if (t.requiredCertificationIds.length === 0) return true;
       return t.requireAllCertifications
         ? t.requiredCertificationIds.every((id) => profile.certificationIds.includes(id))

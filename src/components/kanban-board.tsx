@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { Task, TaskStatus, Subteam, Certification, UserProfile } from "@/types";
 import { TASK_STATUSES } from "@/types";
 import { KanbanColumn } from "@/components/kanban-column";
@@ -30,7 +30,13 @@ export function KanbanBoard({
   const { profile, canManageSubteam } = useAuth();
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // Mouse: drag starts after a small movement, same as before. Touch: drag
+  // only starts after a brief press-and-hold, so a normal swipe still
+  // scrolls the page instead of immediately grabbing the card.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  );
 
   const scopedTasks = useMemo(
     () => (subteam ? tasks.filter((t) => t.subteam === subteam) : tasks),
@@ -53,7 +59,7 @@ export function KanbanBoard({
     const newStatus = over.id as TaskStatus;
     const task = scopedTasks.find((t) => t.id === active.id);
     if (!task || task.status === newStatus) return;
-    moveTaskStatus(task.id, newStatus);
+    moveTaskStatus(task, newStatus);
   }
 
   const canCreateHere = editableSubteams.length > 0;
@@ -72,7 +78,7 @@ export function KanbanBoard({
       </div>
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex flex-col sm:flex-row gap-4 sm:overflow-x-auto pb-4">
           {TASK_STATUSES.map((status) => (
             <KanbanColumn
               key={status}

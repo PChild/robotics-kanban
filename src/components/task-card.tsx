@@ -48,7 +48,10 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: Tas
             profile.certificationIds.includes(id)
           )));
 
-  const canClaim = !alreadyOn && isEligible && profile?.role === "student";
+  const canClaim =
+    task.assigneeUids.length === 0 &&
+    isEligible &&
+    (profile?.role === "student" || profile?.role === "student_leader");
 
   const style = transform
     ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }

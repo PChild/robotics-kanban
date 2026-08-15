@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useRef } from "react";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/context/auth-context";
 import { useUsers, useCertifications } from "@/lib/hooks";
@@ -13,6 +15,7 @@ import {
   deleteCertification,
 } from "@/lib/admin-actions";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
+import { parseCsv, downloadCsv } from "@/lib/csv";
 import { SUBTEAMS, type Role, type Subteam } from "@/types";
 
 export default function AdminPage() {
@@ -53,7 +56,7 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`tracked-label text-xs px-3 py-1.5 rounded-sm border ${
-        active ? "bg-ink text-white border-ink" : "bg-white text-steel border-steel-line"
+        active ? "bg-blueprint text-white border-blueprint" : "bg-surface text-steel border-steel-line"
       }`}
     >
       {label}
@@ -65,17 +68,35 @@ function RosterTab() {
   const { users } = useUsers();
   const { certifications } = useCertifications();
   const [showForm, setShowForm] = useState(false);
+  const [showBatchForm, setShowBatchForm] = useState(false);
   const [lastCreated, setLastCreated] = useState<{ email: string; tempPassword: string } | null>(
     null
+  );
+  const [batchResults, setBatchResults] = useState<
+    { name: string; email: string; tempPassword: string; error?: string }[] | null
+  >(null);
+  const [query, setQuery] = useState("");
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.displayName.toLowerCase().includes(query.toLowerCase()) ||
+      u.email.toLowerCase().includes(query.toLowerCase())
   );
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-steel">{users.length} accounts</p>
-        <button onClick={() => setShowForm(true)} className="btn-primary text-sm">
-          + New account
-        </button>
+        <p className="text-sm text-steel">
+          {query ? `${filteredUsers.length} of ${users.length}` : users.length} accounts
+        </p>
+        <div className="flex gap-2">
+          <button onClick={() => setShowBatchForm(true)} className="btn-secondary text-sm">
+            Batch import CSV
+          </button>
+          <button onClick={() => setShowForm(true)} className="btn-primary text-sm">
+            + New account
+          </button>
+        </div>
       </div>
 
       {lastCreated && (
@@ -83,7 +104,7 @@ function RosterTab() {
           <p className="font-medium">Account created for {lastCreated.email}</p>
           <p className="text-steel mt-1">
             Temporary password:{" "}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-steel-line font-mono">
+            <code className="bg-surface px-1.5 py-0.5 rounded border border-steel-line font-mono">
               {lastCreated.tempPassword}
             </code>{" "}
             — give this to the student. They&apos;ll be forced to set their own password on first
@@ -98,9 +119,75 @@ function RosterTab() {
         </div>
       )}
 
-      <div className="bg-paper-raised border border-steel-line rounded overflow-hidden">
+      {batchResults && (
+        <div className="bg-success/10 border border-success/30 rounded p-3 text-sm">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-medium">
+              Created {batchResults.filter((r) => !r.error).length} of {batchResults.length} accounts
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() =>
+                  downloadCsv(
+                    "temp-passwords-" + new Date().toISOString().slice(0, 10) + ".csv",
+                    [
+                      ["Name", "Email", "Temp password", "Status"],
+                      ...batchResults.map((r) => [
+                        r.name,
+                        r.email,
+                        r.tempPassword,
+                        r.error ? "Failed: " + r.error : "Created",
+                      ]),
+                    ]
+                  )
+                }
+                className="text-xs tracked-label text-blueprint"
+              >
+                Download CSV
+              </button>
+              <button
+                onClick={() => setBatchResults(null)}
+                className="text-xs text-steel underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-steel">
+                  <th className="pr-3 py-1">Name</th>
+                  <th className="pr-3 py-1">Email</th>
+                  <th className="pr-3 py-1">Temp password</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batchResults.map((r) => (
+                  <tr key={r.email} className="border-t border-success/20">
+                    <td className="pr-3 py-1">{r.name}</td>
+                    <td className="pr-3 py-1">{r.email}</td>
+                    <td className="pr-3 py-1 font-mono">
+                      {r.error ? <span className="text-danger">{r.error}</span> : r.tempPassword}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <input
+        className="input max-w-xs"
+        placeholder="Search by name or email…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+
+      <div className="bg-paper-raised border border-steel-line rounded overflow-auto max-h-[70vh]">
         <table className="w-full text-sm">
-          <thead className="bg-paper border-b border-steel-line">
+          <thead className="bg-paper border-b border-steel-line sticky top-0 z-10">
             <tr className="text-left tracked-label text-[10px] text-steel">
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Email</th>
@@ -111,9 +198,16 @@ function RosterTab() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <RosterRow key={u.uid} user={u} certCount={u.certificationIds.length} />
             ))}
+            {filteredUsers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-steel text-sm">
+                  No accounts match &quot;{query}&quot;.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -128,6 +222,184 @@ function RosterTab() {
           }}
         />
       )}
+
+      {showBatchForm && (
+        <BatchImportDialog
+          onClose={() => setShowBatchForm(false)}
+          onDone={(results) => {
+            setBatchResults(results);
+            setShowBatchForm(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface CsvRow {
+  name: string;
+  email: string;
+  role: string;
+  subteam: string;
+  [key: string]: string;
+}
+
+function BatchImportDialog({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: (results: { name: string; email: string; tempPassword: string; error?: string }[]) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<CsvRow[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const validRoles = new Set(["student", "student_leader", "coach"]);
+  const validSubteams = new Set<string>(SUBTEAMS);
+
+  function normalizeRole(raw: string) {
+    return raw.trim().toLowerCase().replace(/\s+/g, "_");
+  }
+  function normalizeSubteam(raw: string) {
+    return raw.trim().toLowerCase();
+  }
+
+  const parsedRows = rows.map((r) => {
+    const role = normalizeRole(r.role);
+    const subteam = normalizeSubteam(r.subteam);
+    const errors: string[] = [];
+    if (!r.name?.trim()) errors.push("missing name");
+    if (!r.email?.trim() || !r.email.includes("@")) errors.push("invalid email");
+    if (!validRoles.has(role)) errors.push("invalid role");
+    if (role !== "coach" && !validSubteams.has(subteam)) errors.push("invalid subteam");
+    return { ...r, role, subteam, errors };
+  });
+
+  const validRows = parsedRows.filter((r) => r.errors.length === 0);
+  const invalidCount = parsedRows.length - validRows.length;
+
+  function handleFile(file: File) {
+    setFileError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result);
+        const parsed = parseCsv<CsvRow>(text);
+        if (parsed.length === 0) {
+          setFileError("No rows found. Make sure the file has a header row: name,email,role,subteam");
+          return;
+        }
+        setRows(parsed);
+      } catch {
+        setFileError("Couldn't read that file as CSV.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    setImporting(true);
+    setProgress(0);
+    const results: { name: string; email: string; tempPassword: string; error?: string }[] = [];
+    for (const row of validRows) {
+      try {
+        const { tempPassword } = await createAccount({
+          displayName: row.name.trim(),
+          email: row.email.trim(),
+          role: row.role as Role,
+          subteam: row.role === "coach" ? null : (row.subteam as Subteam),
+        });
+        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "unknown error";
+        results.push({ name: row.name.trim(), email: row.email.trim(), tempPassword: "-", error: message });
+      }
+      setProgress((p) => p + 1);
+    }
+    setImporting(false);
+    onDone(results);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-paper-raised border border-steel-line rounded w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="tracked-label text-xs text-blueprint font-bold">Batch import accounts</h2>
+          <button type="button" onClick={onClose} className="text-steel text-sm">
+            Close
+          </button>
+        </div>
+
+        <p className="text-sm text-steel">
+          Upload a CSV with columns <code className="font-mono">name,email,role,subteam</code>.
+          Role is one of <code className="font-mono">student</code>,{" "}
+          <code className="font-mono">student_leader</code>, or{" "}
+          <code className="font-mono">coach</code>. Subteam is one of{" "}
+          {SUBTEAMS.join(", ")} (leave blank for coaches).
+        </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+          }}
+          className="text-sm"
+        />
+        {fileError && <p className="text-sm text-danger">{fileError}</p>}
+
+        {rows.length > 0 && (
+          <div>
+            <p className="text-sm mb-2">
+              {validRows.length} valid row{validRows.length === 1 ? "" : "s"} ready to import
+              {invalidCount > 0 && (
+                <span className="text-danger"> — {invalidCount} skipped due to errors</span>
+              )}
+            </p>
+            <div className="max-h-56 overflow-y-auto border border-steel-line rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-paper sticky top-0">
+                  <tr className="text-left text-steel">
+                    <th className="px-2 py-1">Name</th>
+                    <th className="px-2 py-1">Email</th>
+                    <th className="px-2 py-1">Role</th>
+                    <th className="px-2 py-1">Subteam</th>
+                    <th className="px-2 py-1">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.map((r, i) => (
+                    <tr key={i} className={"border-t border-steel-line " + (r.errors.length > 0 ? "text-danger" : "")}>
+                      <td className="px-2 py-1">{r.name}</td>
+                      <td className="px-2 py-1">{r.email}</td>
+                      <td className="px-2 py-1">{r.role}</td>
+                      <td className="px-2 py-1">{r.subteam || "—"}</td>
+                      <td className="px-2 py-1">
+                        {r.errors.length > 0 ? r.errors.join(", ") : "ok"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={handleImport}
+          disabled={validRows.length === 0 || importing}
+          className="btn-primary w-full"
+        >
+          {importing
+            ? `Creating accounts… (${progress}/${validRows.length})`
+            : `Create ${validRows.length} account${validRows.length === 1 ? "" : "s"}`}
+        </button>
+      </div>
     </div>
   );
 }
@@ -142,6 +414,7 @@ function RosterRow({
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState<Role>(user.role);
   const [subteam, setSubteam] = useState<Subteam | "">(user.subteam ?? "");
+  const [resetSent, setResetSent] = useState(false);
 
   async function save() {
     await updateUserRoleAndSubteam(user.uid, {
@@ -154,6 +427,13 @@ function RosterRow({
   async function remove() {
     if (!confirm(`Remove ${user.displayName}'s access? This can't be undone here.`)) return;
     await deleteUserProfile(user.uid);
+  }
+
+  async function resetPassword() {
+    if (!confirm(`Send a password reset email to ${user.email}?`)) return;
+    await sendPasswordResetEmail(auth, user.email);
+    setResetSent(true);
+    setTimeout(() => setResetSent(false), 4000);
   }
 
   return (
@@ -204,6 +484,9 @@ function RosterRow({
           <>
             <button onClick={() => setEditing(true)} className="text-blueprint text-xs tracked-label">
               Edit
+            </button>
+            <button onClick={resetPassword} className="text-hazard text-xs tracked-label">
+              {resetSent ? "Sent" : "Reset pwd"}
             </button>
             <button onClick={remove} className="text-danger text-xs tracked-label">
               Remove

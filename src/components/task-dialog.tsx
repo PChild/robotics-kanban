@@ -1,10 +1,19 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import type { Task, Subteam, Priority, Certification, UserProfile } from "@/types";
+import type { Task, Subteam, Priority, Certification, UserProfile, TaskStatus } from "@/types";
+import { TASK_STATUSES } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
-import { createTask, updateTask, deleteTask, leaveTask } from "@/lib/task-actions";
+import { createTask, updateTask, deleteTask, leaveTask, setAssignees, moveTaskStatus } from "@/lib/task-actions";
 import { useAuth } from "@/context/auth-context";
+import { UserPicker } from "@/components/user-picker";
+
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  backlog: "Backlog",
+  in_progress: "In progress",
+  review: "Review",
+  done: "Done",
+};
 
 interface TaskDialogProps {
   mode: "create" | "edit";
@@ -36,12 +45,19 @@ export function TaskDialog({
   );
   const [requireAll, setRequireAll] = useState(task?.requireAllCertifications ?? false);
   const [assigneeUids, setAssigneeUids] = useState<string[]>(task?.assigneeUids ?? []);
+  const [status, setStatus] = useState<TaskStatus>(task?.status ?? "backlog");
+  const [changingStatus, setChangingStatus] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canManageThisTask = task ? canManageSubteam(task.subteam) : true;
   const canDelete = mode === "edit" && task && canManageSubteam(task.subteam);
   const readOnly = mode === "edit" && !canManageThisTask;
+  const isOnThisTask = !!(task && profile && task.assigneeUids.includes(profile.uid));
+  // Anyone who can manage this task, or is on it themselves, can move it
+  // through statuses directly — this is the non-drag path, which matters a
+  // lot on touch devices where dragging across columns is unreliable.
+  const hasStatusControl = mode === "edit" && (canManageThisTask || isOnThisTask);
 
   // Anyone assignable to this subteam's tasks: coaches (subteam-agnostic) plus
   // students/leaders on the matching subteam.
@@ -53,10 +69,6 @@ export function TaskDialog({
     setRequiredCertificationIds((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
     );
-  }
-
-  function toggleAssignee(uid: string) {
-    setAssigneeUids((prev) => (prev.includes(uid) ? prev.filter((a) => a !== uid) : [...prev, uid]));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -86,8 +98,13 @@ export function TaskDialog({
           requiredCertificationIds,
           requireAllCertifications: requireAll,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-          assigneeUids,
         });
+        const changed =
+          assigneeUids.length !== task.assigneeUids.length ||
+          assigneeUids.some((uid) => !task.assigneeUids.includes(uid));
+        if (changed) {
+          await setAssignees(task, assigneeUids);
+        }
       }
       onClose();
     } catch {
@@ -110,7 +127,16 @@ export function TaskDialog({
     onClose();
   }
 
-  const isOnThisTask = task && profile && task.assigneeUids.includes(profile.uid);
+  async function handleStatusChange(newStatus: TaskStatus) {
+    if (!task || newStatus === status) return;
+    setStatus(newStatus);
+    setChangingStatus(true);
+    try {
+      await moveTaskStatus(task, newStatus);
+    } finally {
+      setChangingStatus(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
@@ -135,6 +161,29 @@ export function TaskDialog({
               day: "numeric",
               year: "numeric",
             })}
+          </p>
+        )}
+
+        {hasStatusControl && (
+          <label className="block">
+            <span className="tracked-label text-xs text-steel">Status</span>
+            <select
+              className="input mt-1"
+              value={status}
+              disabled={changingStatus}
+              onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
+            >
+              {TASK_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {mode === "edit" && !hasStatusControl && task && (
+          <p className="text-xs text-steel">
+            Status: <span className="text-ink">{STATUS_LABEL[task.status]}</span>
           </p>
         )}
 
@@ -205,26 +254,16 @@ export function TaskDialog({
         {!readOnly && (
           <div>
             <span className="tracked-label text-xs text-steel">Assignees</span>
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {assignableUsers.map((u) => (
-                <button
-                  type="button"
-                  key={u.uid}
-                  onClick={() => toggleAssignee(u.uid)}
-                  className={`text-xs px-2 py-1 rounded-sm border ${
-                    assigneeUids.includes(u.uid)
-                      ? "bg-blueprint text-white border-blueprint"
-                      : "bg-white text-steel border-steel-line"
-                  }`}
-                >
-                  {u.displayName}
-                  {u.role === "coach" && " (coach)"}
-                </button>
-              ))}
-              {assignableUsers.length === 0 && (
-                <p className="text-xs text-steel">No one on the roster for this subteam yet.</p>
-              )}
+            <div className="mt-1.5">
+              <UserPicker
+                users={assignableUsers}
+                selectedUids={assigneeUids}
+                onChange={setAssigneeUids}
+              />
             </div>
+            {assignableUsers.length === 0 && (
+              <p className="text-xs text-steel mt-1">No one on the roster for this subteam yet.</p>
+            )}
           </div>
         )}
         {readOnly && (
@@ -255,7 +294,7 @@ export function TaskDialog({
                   className={`text-xs px-2 py-1 rounded-sm border ${
                     requiredCertificationIds.includes(c.id)
                       ? "bg-blueprint text-white border-blueprint"
-                      : "bg-white text-steel border-steel-line"
+                      : "bg-surface text-steel border-steel-line"
                   }`}
                 >
                   {c.name}
