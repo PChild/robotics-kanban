@@ -14,6 +14,7 @@ import {
   subMonths,
 } from "date-fns";
 import { AppShell } from "@/components/app-shell";
+import { GanttView } from "@/components/gantt-view";
 import { TaskDialog } from "@/components/task-dialog";
 import { useAuth } from "@/context/auth-context";
 import { useCertifications, useTasks, useUsers } from "@/lib/hooks";
@@ -37,6 +38,7 @@ export default function CalendarPage() {
   const { certifications } = useCertifications();
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [openTask, setOpenTask] = useState<Task | null>(null);
+  const [view, setView] = useState<"calendar" | "gantt">("calendar");
 
   const dueTasks = useMemo(
     () => tasks
@@ -79,15 +81,38 @@ export default function CalendarPage() {
     <AppShell>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Task calendar</h1>
+          <h1 className="text-lg font-semibold">Task schedule</h1>
           <p className="text-sm text-steel">
-            {dueTasks.length} open task{dueTasks.length === 1 ? "" : "s"} with due dates. Select one to view or edit it.
+            {view === "calendar"
+              ? `${dueTasks.length} open task${dueTasks.length === 1 ? "" : "s"} with due dates. Select one to view or edit it.`
+              : "View task timing and prerequisite relationships. Select a task to view or edit it."}
           </p>
         </div>
-        <button type="button" onClick={openToday} className="btn-secondary text-xs">Today</button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded border border-steel-line bg-paper-raised p-0.5" aria-label="Schedule view">
+            <button
+              type="button"
+              onClick={() => setView("calendar")}
+              className={`rounded-sm px-3 py-1.5 tracked-label text-[10px] ${view === "calendar" ? "bg-blueprint text-white" : "text-steel hover:text-ink"}`}
+            >
+              Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("gantt")}
+              className={`rounded-sm px-3 py-1.5 tracked-label text-[10px] ${view === "gantt" ? "bg-blueprint text-white" : "text-steel hover:text-ink"}`}
+            >
+              Gantt
+            </button>
+          </div>
+          {view === "calendar" && (
+            <button type="button" onClick={openToday} className="btn-secondary text-xs">Today</button>
+          )}
+        </div>
       </div>
 
-      <div className="bg-paper-raised border border-steel-line rounded overflow-hidden">
+      {view === "calendar" ? (
+        <div className="bg-paper-raised border border-steel-line rounded overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-3 py-3 border-b border-steel-line">
           <button
             type="button"
@@ -164,7 +189,10 @@ export default function CalendarPage() {
             })
           )}
         </div>
-      </div>
+        </div>
+      ) : (
+        <GanttView tasks={tasks} onOpenTask={setOpenTask} />
+      )}
 
       {openTask && (
         <TaskDialog
