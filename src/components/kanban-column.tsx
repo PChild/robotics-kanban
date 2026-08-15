@@ -7,13 +7,15 @@ import { TaskCard } from "@/components/task-card";
 const STATUS_META: Record<TaskStatus, { label: string; step: string }> = {
   backlog: { label: "Backlog", step: "01" },
   in_progress: { label: "In progress", step: "02" },
-  review: { label: "Review", step: "03" },
-  done: { label: "Done", step: "04" },
+  blocked: { label: "Stuck", step: "03" },
+  review: { label: "Review", step: "04" },
+  done: { label: "Done", step: "05" },
 };
 
 interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
+  allTasks: Task[];
   certifications: Certification[];
   users: UserProfile[];
   canDrag: (task: Task) => boolean;
@@ -21,7 +23,7 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({
-  status, tasks, certifications, users, canDrag, onOpenTask,
+  status, tasks, allTasks, certifications, users, canDrag, onOpenTask,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const meta = STATUS_META[status];
@@ -39,7 +41,7 @@ export function KanbanColumn({
           }`}
       >
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} certifications={certifications} users={users}
+          <TaskCard key={task.id} task={task} tasks={allTasks} certifications={certifications} users={users}
             draggable={canDrag(task)} onOpen={() => onOpenTask(task)} />
         ))}
         {tasks.length === 0 && <p className="text-xs text-steel/60 text-center py-6">Nothing here</p>}

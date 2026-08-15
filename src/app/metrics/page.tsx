@@ -21,6 +21,7 @@ import { SUBTEAMS, TASK_STATUSES, type TaskStatus } from "@/types";
 const STATUS_COLOR: Record<TaskStatus, string> = {
   backlog: "var(--steel)",
   in_progress: "var(--blueprint)",
+  blocked: "var(--danger)",
   review: "var(--hazard)",
   done: "var(--success)",
 };
@@ -28,6 +29,7 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
 const STATUS_LABEL: Record<TaskStatus, string> = {
   backlog: "Backlog",
   in_progress: "In progress",
+  blocked: "Stuck",
   review: "Review",
   done: "Done",
 };

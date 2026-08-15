@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import type { Task, Subteam, Priority, Certification, UserProfile, TaskStatus } from "@/types";
+import { useState, FormEvent, ChangeEvent } from "react";
+import type { Task, Subteam, Priority, Certification, UserProfile, TaskStatus, BlockedReason, TaskAttachment } from "@/types";
 import { TASK_STATUSES } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
-import { createTask, updateTask, deleteTask, leaveTask, setAssignees, moveTaskStatus } from "@/lib/task-actions";
+import { createTask, updateTask, deleteTask, leaveTask, setAssignees, moveTaskStatus, addTaskComment, uploadTaskAttachment, removeTaskAttachment, incompletePrerequisites } from "@/lib/task-actions";
 import { useAuth } from "@/context/auth-context";
 import { UserPicker } from "@/components/user-picker";
 
@@ -12,7 +12,16 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   backlog: "Backlog",
   in_progress: "In progress",
   review: "Review",
+  blocked: "Stuck",
   done: "Done",
+};
+
+const BLOCKED_REASON_LABEL: Record<BlockedReason, string> = {
+  parts: "Waiting on parts / order",
+  information: "Waiting on information",
+  approval: "Waiting on approval",
+  prerequisite: "Waiting on prerequisite",
+  other: "Other",
 };
 
 interface TaskDialogProps {
@@ -21,6 +30,7 @@ interface TaskDialogProps {
   editableSubteams: Subteam[];
   certifications: Certification[];
   users: UserProfile[];
+  tasks: Task[];
   task?: Task;
   onClose: () => void;
 }
@@ -31,6 +41,7 @@ export function TaskDialog({
   editableSubteams,
   certifications,
   users,
+  tasks,
   task,
   onClose,
 }: TaskDialogProps) {
@@ -46,6 +57,15 @@ export function TaskDialog({
   const [requireAll, setRequireAll] = useState(task?.requireAllCertifications ?? false);
   const [assigneeUids, setAssigneeUids] = useState<string[]>(task?.assigneeUids ?? []);
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "backlog");
+  const [pointOfContactUid, setPointOfContactUid] = useState(task?.pointOfContactUid ?? task?.createdByUid ?? "");
+  const [blockedReason, setBlockedReason] = useState<BlockedReason | "">(task?.blockedReason ?? "");
+  const [blockedDetails, setBlockedDetails] = useState(task?.blockedDetails ?? "");
+  const [prerequisiteTaskIds, setPrerequisiteTaskIds] = useState<string[]>(task?.prerequisiteTaskIds ?? []);
+  const [comments, setComments] = useState(task?.comments ?? []);
+  const [commentBody, setCommentBody] = useState("");
+  const [attachments, setAttachments] = useState(task?.attachments ?? []);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +81,21 @@ export function TaskDialog({
   const assignableUsers = users;
 
   const creator = task ? users.find((u) => u.uid === task.createdByUid) : undefined;
+  const incomplete = task ? incompletePrerequisites({ ...task, prerequisiteTaskIds }, tasks) : [];
+
+  const prerequisiteOptions = tasks.filter((candidate) => {
+    if (candidate.id === task?.id) return false;
+    if (!task) return true;
+    const visited = new Set<string>();
+    const dependsOnCurrentTask = (candidateId: string): boolean => {
+      if (candidateId === task.id) return true;
+      if (visited.has(candidateId)) return false;
+      visited.add(candidateId);
+      const found = tasks.find((item) => item.id === candidateId);
+      return (found?.prerequisiteTaskIds ?? []).some(dependsOnCurrentTask);
+    };
+    return !dependsOnCurrentTask(candidate.id);
+  });
 
   function toggleCert(id: string) {
     setRequiredCertificationIds((prev) =>
@@ -75,7 +110,7 @@ export function TaskDialog({
     setSubmitting(true);
     try {
       if (mode === "create") {
-        await createTask({
+        const created = await createTask({
           title,
           description,
           subteam,
@@ -83,9 +118,23 @@ export function TaskDialog({
           requiredCertificationIds,
           requireAllCertifications: requireAll,
           createdByUid: profile.uid,
+          pointOfContactUid: pointOfContactUid || profile.uid,
+          blockedReason: blockedReason || null,
+          blockedDetails,
+          prerequisiteTaskIds,
+          comments: [],
+          attachments: [],
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
           assigneeUids,
         });
+        if (pendingFiles.length > 0) {
+          const results = await Promise.allSettled(
+            pendingFiles.map((file) => uploadTaskAttachment(created.id, file, profile.uid))
+          );
+          if (results.some((result) => result.status === "rejected")) {
+            alert("The task was created, but at least one attachment could not be uploaded. You can add it again from the task details.");
+          }
+        }
       } else if (task) {
         await updateTask(task.id, {
           title,
@@ -95,6 +144,10 @@ export function TaskDialog({
           requiredCertificationIds,
           requireAllCertifications: requireAll,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+          pointOfContactUid: pointOfContactUid || task.createdByUid,
+          blockedReason: blockedReason || null,
+          blockedDetails,
+          prerequisiteTaskIds,
         });
         const changed =
           assigneeUids.length !== task.assigneeUids.length ||
@@ -114,7 +167,7 @@ export function TaskDialog({
   async function handleDelete() {
     if (!task) return;
     if (!confirm(`Delete "${task.title}"? This can't be undone.`)) return;
-    await deleteTask(task.id);
+    await deleteTask(task);
     onClose();
   }
 
@@ -126,12 +179,74 @@ export function TaskDialog({
 
   async function handleStatusChange(newStatus: TaskStatus) {
     if (!task || newStatus === status) return;
-    setStatus(newStatus);
     setChangingStatus(true);
+    setError(null);
     try {
-      await moveTaskStatus(task, newStatus);
+      if (newStatus === "blocked" && !blockedReason) {
+        setBlockedReason("other");
+        await updateTask(task.id, { blockedReason: "other" });
+      }
+      await moveTaskStatus(task, newStatus, tasks);
+      setStatus(newStatus);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not change the task status.");
     } finally {
       setChangingStatus(false);
+    }
+  }
+
+  function togglePrerequisite(id: string) {
+    setPrerequisiteTaskIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  }
+
+  async function handleAddComment() {
+    if (!task || !profile || !commentBody.trim()) return;
+    setError(null);
+    try {
+      const comment = await addTaskComment(task.id, commentBody, profile.uid);
+      setComments((current) => [...current, comment]);
+      setCommentBody("");
+    } catch {
+      setError("Could not post that update. Try again.");
+    }
+  }
+
+  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.some((file) => file.size > 20 * 1024 * 1024)) {
+      setError("Each attachment must be 20 MB or smaller.");
+      return;
+    }
+    if (!task || !profile) {
+      setPendingFiles((current) => [...current, ...files]);
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(files.map((file) => uploadTaskAttachment(task.id, file, profile.uid)));
+      const uploaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      setAttachments((current) => [...current, ...uploaded]);
+      if (results.some((result) => result.status === "rejected")) {
+        setError("At least one file could not be uploaded. Try again.");
+      }
+    } catch {
+      setError("Files could not be uploaded. Try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemoveAttachment(attachment: TaskAttachment) {
+    if (!task) return;
+    try {
+      await removeTaskAttachment(task.id, attachment);
+      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+    } catch {
+      setError("Could not remove that attachment.");
     }
   }
 
@@ -182,6 +297,37 @@ export function TaskDialog({
           <p className="text-xs text-steel">
             Status: <span className="text-ink">{STATUS_LABEL[task.status]}</span>
           </p>
+        )}
+
+        {status === "blocked" && (
+          <div className="rounded border border-hazard/50 bg-hazard/10 p-3 space-y-3">
+            <label className="block">
+              <span className="tracked-label text-xs text-steel">Why is this task stuck?</span>
+              <select
+                className="input mt-1"
+                value={blockedReason}
+                onChange={(e) => setBlockedReason(e.target.value as BlockedReason)}
+                disabled={readOnly}
+                required={!readOnly}
+              >
+                <option value="">Select a reason</option>
+                {Object.entries(BLOCKED_REASON_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="tracked-label text-xs text-steel">What are we waiting on?</span>
+              <textarea
+                className="input mt-1"
+                rows={2}
+                value={blockedDetails}
+                onChange={(e) => setBlockedDetails(e.target.value)}
+                disabled={readOnly}
+                placeholder="Order number, person to follow up with, next check-in…"
+              />
+            </label>
+          </div>
         )}
 
         <label className="block">
@@ -277,6 +423,22 @@ export function TaskDialog({
           </div>
         )}
 
+        <label className="block">
+          <span className="tracked-label text-xs text-steel">Point of contact</span>
+          <select
+            className="input mt-1"
+            value={pointOfContactUid}
+            onChange={(e) => setPointOfContactUid(e.target.value)}
+            disabled={readOnly}
+          >
+            <option value="">Task creator ({creator?.displayName ?? profile?.displayName ?? "current user"})</option>
+            {users.map((user) => (
+              <option key={user.uid} value={user.uid}>{user.displayName}</option>
+            ))}
+          </select>
+          <p className="text-xs text-steel mt-1">The person to ask when someone gets stuck or needs clarification.</p>
+        </label>
+
         <div>
           <span className="tracked-label text-xs text-steel">Required certifications</span>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -310,6 +472,105 @@ export function TaskDialog({
           )}
         </div>
 
+        <div>
+          <span className="tracked-label text-xs text-steel">Prerequisite tasks</span>
+          <p className="text-xs text-steel mt-1">All selected tasks must be done before this one can start.</p>
+          <div className="mt-2 max-h-36 overflow-y-auto rounded border border-steel-line bg-surface">
+            {prerequisiteOptions.length === 0 ? (
+              <p className="text-xs text-steel p-3">No other tasks are available.</p>
+            ) : prerequisiteOptions.map((candidate) => (
+              <label key={candidate.id} className="flex items-start gap-2 px-3 py-2 border-b border-steel-line last:border-b-0 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={prerequisiteTaskIds.includes(candidate.id)}
+                  onChange={() => togglePrerequisite(candidate.id)}
+                  disabled={readOnly}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate">{candidate.title}</span>
+                  <span className={`tracked-label text-[9px] ${candidate.status === "done" ? "text-success" : "text-steel"}`}>
+                    {STATUS_LABEL[candidate.status]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {incomplete.length > 0 && (
+            <p className="text-xs text-hazard mt-2">
+              Waiting on: {incomplete.map((item) => item.title).join(", ")}
+            </p>
+          )}
+        </div>
+
+        <div className="border-t border-steel-line pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="tracked-label text-xs text-steel">Attachments ({attachments.length + pendingFiles.length})</span>
+            {(!readOnly || isOnThisTask) && (
+              <label className="btn-secondary text-xs cursor-pointer">
+                {uploading ? "Uploading…" : "Add files"}
+                <input type="file" multiple className="sr-only" onChange={handleFiles} disabled={uploading} />
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-steel mt-1">Images or files up to 20 MB each.</p>
+          {(attachments.length > 0 || pendingFiles.length > 0) && (
+            <div className="mt-2 space-y-1.5">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="flex items-center gap-2 rounded border border-steel-line bg-surface px-2.5 py-2 text-sm">
+                  <span aria-hidden="true">{attachment.contentType.startsWith("image/") ? "▧" : "▤"}</span>
+                  <a href={attachment.url} target="_blank" rel="noreferrer" className="text-blueprint hover:underline truncate flex-1">
+                    {attachment.name}
+                  </a>
+                  <span className="text-[10px] text-steel shrink-0">{formatFileSize(attachment.size)}</span>
+                  {(canManageThisTask || isOnThisTask) && (
+                    <button type="button" onClick={() => handleRemoveAttachment(attachment)} className="text-danger text-xs">Remove</button>
+                  )}
+                </div>
+              ))}
+              {pendingFiles.map((file, index) => (
+                <div key={`${file.name}-${index}`} className="flex items-center gap-2 rounded border border-dashed border-steel-line px-2.5 py-2 text-sm">
+                  <span className="truncate flex-1">{file.name}</span>
+                  <span className="text-[10px] text-steel">Uploads when the task is created</span>
+                  <button type="button" onClick={() => setPendingFiles((current) => current.filter((_, i) => i !== index))} className="text-danger text-xs">Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {task && (
+          <div className="border-t border-steel-line pt-4">
+            <span className="tracked-label text-xs text-steel">Updates ({comments.length})</span>
+            <div className="mt-2 space-y-2 max-h-52 overflow-y-auto">
+              {comments.length === 0 && <p className="text-xs text-steel">No updates yet.</p>}
+              {comments.map((comment) => {
+                const author = users.find((user) => user.uid === comment.authorUid);
+                return (
+                  <div key={comment.id} className="rounded border border-steel-line bg-surface p-2.5">
+                    <div className="flex justify-between gap-2 text-[10px] text-steel">
+                      <span className="font-semibold text-ink">{author?.displayName ?? "Former team member"}</span>
+                      <time>{new Date(comment.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
+                    </div>
+                    <p className="text-sm mt-1 whitespace-pre-wrap">{comment.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <textarea
+                className="input"
+                rows={2}
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                placeholder="Share progress, new details, or a question…"
+                maxLength={2000}
+              />
+              <button type="button" onClick={handleAddComment} disabled={!commentBody.trim()} className="btn-secondary self-end">Post</button>
+            </div>
+          </div>
+        )}
+
         {error && <p className="text-sm text-danger">{error}</p>}
 
         <div className="flex items-center gap-2 pt-2">
@@ -336,4 +597,10 @@ export function TaskDialog({
       </form>
     </div>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

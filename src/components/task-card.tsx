@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { Task, Certification, UserProfile } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
 import { useAuth } from "@/context/auth-context";
-import { claimTask } from "@/lib/task-actions";
+import { claimTask, incompletePrerequisites } from "@/lib/task-actions";
 
 const PRIORITY_MARK: Record<Task["priority"], { label: string; color: string }> = {
   high: { label: "High", color: "var(--danger)" },
@@ -14,14 +14,24 @@ const PRIORITY_MARK: Record<Task["priority"], { label: string; color: string }> 
   low: { label: "Low", color: "var(--steel)" },
 };
 
-export function TaskCard({ task, certifications, users, draggable, onOpen }: {
-  task: Task; certifications: Certification[]; users: UserProfile[]; draggable: boolean; onOpen: () => void;
+const BLOCKED_REASON_LABEL: Record<NonNullable<Task["blockedReason"]>, string> = {
+  parts: "Waiting on parts / order",
+  information: "Waiting on information",
+  approval: "Waiting on approval",
+  prerequisite: "Waiting on prerequisite",
+  other: "Blocked",
+};
+
+export function TaskCard({ task, tasks, certifications, users, draggable, onOpen }: {
+  task: Task; tasks: Task[]; certifications: Certification[]; users: UserProfile[]; draggable: boolean; onOpen: () => void;
 }) {
   const { profile } = useAuth();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, disabled: !draggable });
   const meta = SUBTEAM_META[task.subteam];
   const assignees = users.filter((u) => task.assigneeUids.includes(u.uid));
   const requiredCerts = certifications.filter((c) => task.requiredCertificationIds.includes(c.id));
+  const contact = users.find((u) => u.uid === (task.pointOfContactUid || task.createdByUid));
+  const incomplete = incompletePrerequisites(task, tasks);
   const alreadyOn = !!profile && task.assigneeUids.includes(profile.uid);
   const isEligible = !!profile && (task.requiredCertificationIds.length === 0 ||
     (task.requireAllCertifications
@@ -47,6 +57,18 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: {
           </span>
         </div>
         <p className="text-sm font-medium mt-1.5 leading-snug text-white">{task.title}</p>
+        {(task.status === "blocked" || incomplete.length > 0) && (
+          <div className="mt-2 text-[10px] rounded-sm bg-black/25 border border-white/30 px-2 py-1.5">
+            {task.status === "blocked" ? (
+              <span className="font-semibold">
+                {task.blockedReason ? BLOCKED_REASON_LABEL[task.blockedReason] : "Stuck"}
+                {task.blockedDetails ? ` — ${task.blockedDetails}` : ""}
+              </span>
+            ) : (
+              <span>Waiting on {incomplete.length} prerequisite{incomplete.length === 1 ? "" : "s"}</span>
+            )}
+          </div>
+        )}
         {requiredCerts.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {requiredCerts.map((c) => (
@@ -63,6 +85,13 @@ export function TaskCard({ task, certifications, users, draggable, onOpen }: {
           <span className="text-[10px] text-white/80 whitespace-nowrap shrink-0">
             {task.dueDate ? `due ${new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
               : formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] text-white/80">
+          <span className="truncate">POC: {contact?.displayName ?? "Task creator"}</span>
+          <span className="shrink-0 flex gap-2">
+            {(task.attachments?.length ?? 0) > 0 && <span title="Attachments">▤ {task.attachments.length}</span>}
+            {(task.comments?.length ?? 0) > 0 && <span title="Updates">◫ {task.comments.length}</span>}
           </span>
         </div>
       </button>

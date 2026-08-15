@@ -99,6 +99,36 @@ service cloud.firestore {
               request.resource.data.assigneeUids == resource.data.assigneeUids &&
               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'history'])
             )
+            ||
+            // Any signed-in team member may append an update under their own
+            // identity. Existing comments cannot be edited or removed.
+            (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'updatedAt']) &&
+              request.resource.data.comments.size() == resource.data.get('comments', []).size() + 1 &&
+              request.resource.data.comments.hasAll(resource.data.get('comments', [])) &&
+              request.resource.data.comments[resource.data.get('comments', []).size()].authorUid == request.auth.uid &&
+              request.resource.data.comments[resource.data.get('comments', []).size()].body is string &&
+              request.resource.data.comments[resource.data.get('comments', []).size()].body.size() > 0 &&
+              request.resource.data.comments[resource.data.get('comments', []).size()].body.size() <= 2000
+            )
+            ||
+            // Assignees may add or remove attachments on their task. Managers
+            // can do the same through the broader rule above.
+            (
+              resource.data.assigneeUids.hasAny([request.auth.uid]) &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments', 'updatedAt']) &&
+              (
+                (
+                  request.resource.data.attachments.size() == resource.data.get('attachments', []).size() + 1 &&
+                  request.resource.data.attachments.hasAll(resource.data.get('attachments', []))
+                )
+                ||
+                (
+                  request.resource.data.attachments.size() == resource.data.get('attachments', []).size() - 1 &&
+                  resource.data.get('attachments', []).hasAll(request.resource.data.attachments)
+                )
+              )
+            )
           )
         );
     }

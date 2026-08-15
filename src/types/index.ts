@@ -19,11 +19,12 @@ export const SUBTEAMS: Subteam[] = [
   "finance",
 ];
 
-export type TaskStatus = "backlog" | "in_progress" | "review" | "done";
+export type TaskStatus = "backlog" | "in_progress" | "blocked" | "review" | "done";
 
 export const TASK_STATUSES: TaskStatus[] = [
   "backlog",
   "in_progress",
+  "blocked",
   "review",
   "done",
 ];
@@ -56,6 +57,26 @@ export interface TaskHistoryEntry {
   at: string;
 }
 
+export type BlockedReason = "parts" | "information" | "approval" | "prerequisite" | "other";
+
+export interface TaskComment {
+  id: string;
+  body: string;
+  authorUid: string;
+  createdAt: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  url: string;
+  storagePath: string;
+  contentType: string;
+  size: number;
+  uploadedByUid: string;
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -67,6 +88,12 @@ export interface Task {
   requireAllCertifications: boolean;
   assigneeUids: string[];
   createdByUid: string;
+  pointOfContactUid: string;
+  blockedReason: BlockedReason | null;
+  blockedDetails: string;
+  prerequisiteTaskIds: string[];
+  comments: TaskComment[];
+  attachments: TaskAttachment[];
   createdAt: string;
   updatedAt: string;
   dueDate: string | null;

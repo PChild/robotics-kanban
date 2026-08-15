@@ -11,6 +11,7 @@ import type { Task } from "@/types";
 const STATUS_LABEL: Record<string, string> = {
   backlog: "Backlog",
   in_progress: "In progress",
+  blocked: "Stuck",
   review: "Review",
   done: "Done",
 };
@@ -61,6 +62,7 @@ export default function MyTasksPage() {
               <div key={t.id}>
                 <TaskCard
                   task={t}
+                  tasks={tasks}
                   certifications={certifications}
                   users={users}
                   draggable={false}
@@ -90,6 +92,7 @@ export default function MyTasksPage() {
               <TaskCard
                 key={t.id}
                 task={t}
+                tasks={tasks}
                 certifications={certifications}
                 users={users}
                 draggable={false}
@@ -108,6 +111,7 @@ export default function MyTasksPage() {
           editableSubteams={canManageSubteam(openTask.subteam) ? [openTask.subteam] : [openTask.subteam]}
           certifications={certifications}
           users={users}
+          tasks={tasks}
           onClose={() => setOpenTask(null)}
         />
       )}

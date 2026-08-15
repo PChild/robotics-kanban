@@ -23,6 +23,12 @@ export function useTasks() {
             ...data,
             assigneeUids: data.assigneeUids ?? [],
             history: data.history ?? [],
+            pointOfContactUid: data.pointOfContactUid ?? data.createdByUid,
+            blockedReason: data.blockedReason ?? null,
+            blockedDetails: data.blockedDetails ?? "",
+            prerequisiteTaskIds: data.prerequisiteTaskIds ?? [],
+            comments: data.comments ?? [],
+            attachments: data.attachments ?? [],
           } as Task;
         })
       );

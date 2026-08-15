@@ -7,8 +7,9 @@ import {
   arrayUnion,
   arrayRemove,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { Task, TaskStatus, TaskHistoryEntry } from "@/types";
+import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
+import type { Task, TaskStatus, TaskHistoryEntry, TaskComment, TaskAttachment } from "@/types";
 
 export async function createTask(
   input: Omit<Task, "id" | "createdAt" | "updatedAt" | "status" | "assigneeUids" | "history"> & {
@@ -43,8 +44,61 @@ export async function updateTask(taskId: string, changes: Partial<Task>) {
   });
 }
 
-export async function deleteTask(taskId: string) {
-  await deleteDoc(doc(db, "tasks", taskId));
+export async function addTaskComment(taskId: string, body: string, authorUid: string) {
+  const comment: TaskComment = {
+    id: crypto.randomUUID(),
+    body: body.trim(),
+    authorUid,
+    createdAt: new Date().toISOString(),
+  };
+  await updateDoc(doc(db, "tasks", taskId), {
+    comments: arrayUnion(comment),
+    updatedAt: comment.createdAt,
+  });
+  return comment;
+}
+
+export async function uploadTaskAttachment(taskId: string, file: File, uploadedByUid: string) {
+  const id = crypto.randomUUID();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `task-attachments/${taskId}/${id}/${safeName}`;
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file, { contentType: file.type || "application/octet-stream" });
+  const attachment: TaskAttachment = {
+    id,
+    name: file.name,
+    url: await getDownloadURL(storageRef),
+    storagePath,
+    contentType: file.type || "application/octet-stream",
+    size: file.size,
+    uploadedByUid,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    await updateDoc(doc(db, "tasks", taskId), {
+      attachments: arrayUnion(attachment),
+      updatedAt: attachment.createdAt,
+    });
+  } catch (error) {
+    await deleteObject(storageRef).catch(() => undefined);
+    throw error;
+  }
+  return attachment;
+}
+
+export async function removeTaskAttachment(taskId: string, attachment: TaskAttachment) {
+  await deleteObject(ref(storage, attachment.storagePath));
+  await updateDoc(doc(db, "tasks", taskId), {
+    attachments: arrayRemove(attachment),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function deleteTask(task: Task) {
+  await Promise.allSettled(
+    (task.attachments ?? []).map((attachment) => deleteObject(ref(storage, attachment.storagePath)))
+  );
+  await deleteDoc(doc(db, "tasks", task.id));
 }
 
 // A student joining an open task they're certified for. Security rules
@@ -88,7 +142,20 @@ export async function setAssignees(task: Task, newAssigneeUids: string[]) {
   });
 }
 
-export async function moveTaskStatus(task: Task, status: TaskStatus) {
+export function incompletePrerequisites(task: Task, tasks: Task[]) {
+  const prerequisiteIds = task.prerequisiteTaskIds ?? [];
+  return prerequisiteIds
+    .map((id) => tasks.find((candidate) => candidate.id === id))
+    .filter((candidate): candidate is Task => candidate !== undefined && candidate.status !== "done");
+}
+
+export async function moveTaskStatus(task: Task, status: TaskStatus, tasks: Task[] = []) {
+  if (["in_progress", "review", "done"].includes(status)) {
+    const incomplete = incompletePrerequisites(task, tasks);
+    if (incomplete.length > 0) {
+      throw new Error(`Complete prerequisite${incomplete.length === 1 ? "" : "s"} first: ${incomplete.map((item) => item.title).join(", ")}`);
+    }
+  }
   const now = new Date().toISOString();
   const newEntries: TaskHistoryEntry[] =
     status === "done"

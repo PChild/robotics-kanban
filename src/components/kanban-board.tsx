@@ -53,13 +53,17 @@ export function KanbanBoard({
     return task.assigneeUids.includes(profile.uid);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
     const newStatus = over.id as TaskStatus;
     const task = scopedTasks.find((t) => t.id === active.id);
     if (!task || task.status === newStatus) return;
-    moveTaskStatus(task, newStatus);
+    try {
+      await moveTaskStatus(task, newStatus, tasks);
+    } catch (caught) {
+      alert(caught instanceof Error ? caught.message : "Could not move that task.");
+    }
   }
 
   const canCreateHere = editableSubteams.length > 0;
@@ -84,6 +88,7 @@ export function KanbanBoard({
               key={status}
               status={status}
               tasks={tasksFor(status)}
+              allTasks={tasks}
               certifications={certifications}
               users={users}
               canDrag={canDrag}
@@ -101,6 +106,7 @@ export function KanbanBoard({
           editableSubteams={editableSubteams.length > 0 ? editableSubteams : [openTask.subteam]}
           certifications={certifications}
           users={users}
+          tasks={tasks}
           onClose={() => setOpenTask(null)}
         />
       )}
@@ -111,6 +117,7 @@ export function KanbanBoard({
           editableSubteams={editableSubteams}
           certifications={certifications}
           users={users}
+          tasks={tasks}
           onClose={() => setCreating(false)}
         />
       )}
