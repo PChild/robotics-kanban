@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, useRef, FormEvent, ChangeEvent, DragEvent } from "react";
 import type { Task, Subteam, Priority, Certification, UserProfile, TaskStatus, BlockedReason, TaskAttachment } from "@/types";
 import { TASK_STATUSES } from "@/types";
 import { SUBTEAM_META } from "@/lib/subteam-meta";
 import { createTask, updateTask, deleteTask, leaveTask, setAssignees, moveTaskStatus, addTaskComment, uploadTaskAttachment, removeTaskAttachment, incompletePrerequisites } from "@/lib/task-actions";
 import { useAuth } from "@/context/auth-context";
 import { UserPicker } from "@/components/user-picker";
+import { ModalBackdrop } from "@/components/modal-backdrop";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   backlog: "Backlog",
@@ -66,6 +67,8 @@ export function TaskDialog({
   const [attachments, setAttachments] = useState(task?.attachments ?? []);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepth = useRef(0);
   const [changingStatus, setChangingStatus] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +78,7 @@ export function TaskDialog({
   const readOnly = mode === "edit" && !canManageThisTask;
   const isOnThisTask = !!(task && profile && task.assigneeUids.includes(profile.uid));
   const hasStatusControl = mode === "edit" && (canManageThisTask || isOnThisTask);
+  const canAttach = !readOnly || isOnThisTask;
 
   // Assignment is deliberately cross-subteam. Certifications remain the
   // skill/safety gate for claiming work; roster subteam does not.
@@ -213,9 +217,8 @@ export function TaskDialog({
     }
   }
 
-  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  async function handleSelectedFiles(files: File[]) {
+    if (files.length === 0) return;
     if (files.some((file) => file.size > 20 * 1024 * 1024)) {
       setError("Each attachment must be 20 MB or smaller.");
       return;
@@ -240,6 +243,40 @@ export function TaskDialog({
     }
   }
 
+  function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    void handleSelectedFiles(files);
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!canAttach) return;
+    dragDepth.current += 1;
+    setDragActive(true);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!canAttach) return;
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!canAttach) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!canAttach) return;
+    dragDepth.current = 0;
+    setDragActive(false);
+    void handleSelectedFiles(Array.from(event.dataTransfer.files));
+  }
+
   async function handleRemoveAttachment(attachment: TaskAttachment) {
     if (!task) return;
     try {
@@ -251,7 +288,7 @@ export function TaskDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
+    <ModalBackdrop onClose={onClose}>
       <form
         onSubmit={handleSubmit}
         className="bg-paper-raised border border-steel-line rounded w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4"
@@ -503,17 +540,28 @@ export function TaskDialog({
           )}
         </div>
 
-        <div className="border-t border-steel-line pt-4">
+        <div
+          className={`border rounded p-3 transition-colors ${dragActive
+            ? "border-blueprint bg-blueprint/10"
+            : "border-dashed border-steel-line"
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <div className="flex items-center justify-between gap-3">
             <span className="tracked-label text-xs text-steel">Attachments ({attachments.length + pendingFiles.length})</span>
-            {(!readOnly || isOnThisTask) && (
+            {canAttach && (
               <label className="btn-secondary text-xs cursor-pointer">
                 {uploading ? "Uploading…" : "Add files"}
                 <input type="file" multiple className="sr-only" onChange={handleFiles} disabled={uploading} />
               </label>
             )}
           </div>
-          <p className="text-xs text-steel mt-1">Images or files up to 20 MB each.</p>
+          <p className={`text-xs mt-1 ${dragActive ? "text-blueprint font-medium" : "text-steel"}`}>
+            {dragActive ? "Drop files here to attach them" : "Drag files here, or choose images and files up to 20 MB each."}
+          </p>
           {(attachments.length > 0 || pendingFiles.length > 0) && (
             <div className="mt-2 space-y-1.5">
               {attachments.map((attachment) => (
@@ -595,7 +643,7 @@ export function TaskDialog({
           )}
         </div>
       </form>
-    </div>
+    </ModalBackdrop>
   );
 }
 

@@ -4,6 +4,7 @@ import { useState, FormEvent, useRef } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { AppShell } from "@/components/app-shell";
+import { ModalBackdrop } from "@/components/modal-backdrop";
 import { useAuth } from "@/context/auth-context";
 import { useUsers, useCertifications } from "@/lib/hooks";
 import {
@@ -323,7 +324,7 @@ function BatchImportDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
+    <ModalBackdrop onClose={onClose}>
       <div className="bg-paper-raised border border-steel-line rounded w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="tracked-label text-xs text-blueprint font-bold">Batch import accounts</h2>
@@ -399,7 +400,7 @@ function BatchImportDialog({
             : `Create ${validRows.length} account${validRows.length === 1 ? "" : "s"}`}
         </button>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -563,7 +564,7 @@ function NewAccountDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
+    <ModalBackdrop onClose={onClose}>
       <form
         onSubmit={handleSubmit}
         className="bg-paper-raised border border-steel-line rounded w-full max-w-sm p-6 space-y-4"
@@ -607,7 +608,7 @@ function NewAccountDialog({
           {submitting ? "Creating…" : "Create account"}
         </button>
       </form>
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -699,7 +700,7 @@ function CertDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
+    <ModalBackdrop onClose={onClose}>
       <form
         onSubmit={handleSubmit}
         className="bg-paper-raised border border-steel-line rounded w-full max-w-sm p-6 space-y-4"
@@ -735,6 +736,6 @@ function CertDialog({
           {submitting ? "Saving…" : mode === "create" ? "Create certification" : "Save changes"}
         </button>
       </form>
-    </div>
+    </ModalBackdrop>
   );
 }
