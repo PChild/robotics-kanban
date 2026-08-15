@@ -38,6 +38,12 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isCoach();
       allow update: if isCoach()
+        || (
+          isStudentLeader()
+          && resource.data.role != 'coach'
+          && resource.data.subteam == myProfile().subteam
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['certificationIds'])
+        )
         || (isSignedIn() && request.auth.uid == uid
             // Students may only touch their own display name and clear the
             // must-reset-password flag — never their own role/certs/subteam.

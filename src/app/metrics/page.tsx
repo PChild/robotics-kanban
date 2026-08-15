@@ -36,6 +36,17 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 
 const WORKLOAD_DEFAULT_LIMIT = 15;
 
+const TOOLTIP_PROPS = {
+  contentStyle: {
+    backgroundColor: "var(--paper-raised)",
+    border: "1px solid var(--steel-line)",
+    borderRadius: 4,
+    color: "var(--ink)",
+  },
+  labelStyle: { color: "var(--ink)", fontWeight: 600 },
+  itemStyle: { color: "var(--ink)" },
+};
+
 export default function MetricsPage() {
   const { profile } = useAuth();
   const { tasks } = useTasks();
@@ -124,7 +135,7 @@ export default function MetricsPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--steel-line)" />
             <XAxis dataKey="subteam" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-            <Tooltip />
+            <Tooltip {...TOOLTIP_PROPS} />
             <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => STATUS_LABEL[v as TaskStatus]} />
             {TASK_STATUSES.map((s) => (
               <Bar key={s} dataKey={s} stackId="a" fill={STATUS_COLOR[s]} name={s} />
@@ -152,7 +163,7 @@ export default function MetricsPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--steel-line)" />
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
             <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
-            <Tooltip />
+            <Tooltip {...TOOLTIP_PROPS} />
             <Bar dataKey="active" fill="var(--blueprint)" radius={[0, 3, 3, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -171,7 +182,7 @@ export default function MetricsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--steel-line)" />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip {...TOOLTIP_PROPS} />
               <Bar dataKey="count" radius={[0, 3, 3, 0]}>
                 {certCoverage.map((c, i) => (
                   <Cell key={i} fill={c.count <= 1 ? "var(--danger)" : "var(--success)"} />

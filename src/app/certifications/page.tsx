@@ -18,7 +18,7 @@ export default function CertificationsPage() {
         <h1 className="text-lg font-semibold">Certifications</h1>
         <p className="text-sm text-steel">
           {canManage
-            ? "Grant or revoke certifications for students. Tasks with matching requirements unlock automatically."
+            ? "Grant or revoke certifications for team members. Tasks with matching requirements unlock automatically."
             : "Your certifications determine which tasks you can claim."}
         </p>
       </div>
@@ -76,10 +76,10 @@ function ManageGrid() {
   const { users } = useUsers();
   const { certifications } = useCertifications();
   const [query, setQuery] = useState("");
+  const [expandedUid, setExpandedUid] = useState<string | null>(null);
 
-  const students = users
-    .filter((u) => u.role !== "coach")
-    .filter((u) => isCoach || u.subteam === profile?.subteam)
+  const members = users
+    .filter((u) => isCoach || (u.role !== "coach" && u.subteam === profile?.subteam))
     .filter((u) => u.displayName.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
@@ -103,16 +103,16 @@ function ManageGrid() {
     <div>
       <input
         className="input mb-3 max-w-xs"
-        placeholder="Search by name…"
+        placeholder="Search team members…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className="bg-paper-raised border border-steel-line rounded overflow-auto max-h-[70vh]">
+      <div className="hidden sm:block bg-paper-raised border border-steel-line rounded overflow-auto max-h-[70vh]">
         <table className="text-sm min-w-full">
           <thead className="bg-paper border-b border-steel-line sticky top-0 z-10">
             <tr>
               <th className="text-left px-3 py-2 tracked-label text-[10px] text-steel sticky left-0 bg-paper">
-                Student
+                Team member
               </th>
               {certifications.map((c) => (
                 <th key={c.id} className="px-3 py-2 tracked-label text-[10px] text-steel whitespace-nowrap">
@@ -122,12 +122,12 @@ function ManageGrid() {
             </tr>
           </thead>
           <tbody>
-            {students.map((u) => (
+            {members.map((u) => (
               <tr key={u.uid} className="border-b border-steel-line last:border-0">
                 <td className="px-3 py-2 sticky left-0 bg-paper-raised whitespace-nowrap">
                   <p className="font-medium">{u.displayName}</p>
                   <p className="text-[10px] text-steel">
-                    {u.subteam ? SUBTEAM_META[u.subteam].label : "—"}
+                    {memberDetails(u)}
                   </p>
                 </td>
                 {certifications.map((c) => {
@@ -150,16 +150,80 @@ function ManageGrid() {
                 })}
               </tr>
             ))}
-            {students.length === 0 && (
+            {members.length === 0 && (
               <tr>
                 <td colSpan={certifications.length + 1} className="px-3 py-6 text-center text-steel text-sm">
-                  No students match &quot;{query}&quot;.
+                  No team members match &quot;{query}&quot;.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <div className="sm:hidden space-y-2">
+        {members.map((member) => {
+          const expanded = expandedUid === member.uid;
+          return (
+            <div key={member.uid} className="bg-paper-raised border border-steel-line rounded overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between gap-3 p-3 text-left"
+                onClick={() => setExpandedUid(expanded ? null : member.uid)}
+                aria-expanded={expanded}
+              >
+                <span className="min-w-0">
+                  <span className="block font-medium text-sm truncate">{member.displayName}</span>
+                  <span className="block text-[10px] text-steel mt-0.5">{memberDetails(member)}</span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="tracked-label text-[9px] text-steel">
+                    {member.certificationIds.length} certified
+                  </span>
+                  <span className="text-blueprint" aria-hidden="true">{expanded ? "−" : "+"}</span>
+                </span>
+              </button>
+
+              {expanded && (
+                <div className="border-t border-steel-line p-3 space-y-2">
+                  {certifications.map((certification) => {
+                    const held = member.certificationIds.includes(certification.id);
+                    return (
+                      <button
+                        type="button"
+                        key={certification.id}
+                        onClick={() => toggle(member, certification)}
+                        className={`w-full flex items-start justify-between gap-3 rounded border p-2.5 text-left ${held
+                          ? "border-success/40 bg-success/10"
+                          : "border-steel-line bg-surface"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{certification.name}</span>
+                          <span className="block text-[10px] text-steel mt-0.5">
+                            {certification.subteam ? SUBTEAM_META[certification.subteam].label : "All subteams"}
+                          </span>
+                        </span>
+                        <span className={`tracked-label text-[10px] shrink-0 ${held ? "text-success" : "text-steel"}`}>
+                          {held ? "✓ Certified" : "Not certified"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {members.length === 0 && (
+          <p className="text-sm text-steel text-center py-6">No team members match &quot;{query}&quot;.</p>
+        )}
+      </div>
     </div>
   );
+}
+
+function memberDetails(user: UserProfile) {
+  const role = user.role === "coach" ? "Coach" : user.role === "student_leader" ? "Student leader" : "Student";
+  return user.subteam ? `${role} · ${SUBTEAM_META[user.subteam].label}` : role;
 }
