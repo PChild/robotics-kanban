@@ -602,7 +602,17 @@ function PartDetails({
       <div className="grid gap-px bg-steel-line sm:grid-cols-2 lg:grid-cols-3">
         <InfoCell label="Process" value={titleCase(item.machiningType)} />
         <InfoCell label="Quantity" value={String(item.quantity)} emphasis />
-        <InfoCell label="Material" value={item.material ? titleCase(item.material) : "Not specified"} />
+        {item.kind === "step" ? (
+          <InfoCell
+            label="Bounding box"
+            value={item.stepBounds
+              ? `${formatMeasurement(item.stepBounds.xInches)} × ${formatMeasurement(item.stepBounds.yInches)} × ${formatMeasurement(item.stepBounds.zInches)} in`
+              : "Not available"}
+            emphasis={Boolean(item.stepBounds)}
+          />
+        ) : (
+          <InfoCell label="Material" value={item.material ? titleCase(item.material) : "Not specified"} />
+        )}
         <InfoCell label="Subsystem" value={item.subsystem || "Not specified"} />
         <InfoCell label="Requested by" value={item.requestedBy?.name || "Unknown"} />
         <InfoCell label="Requested" value={formatDateTime(item.createdAt)} />

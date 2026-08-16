@@ -161,6 +161,12 @@ export interface ManufacturingExport {
     heightInches: number;
     areaSquareInches: number;
   };
+  stepBounds?: {
+    xInches: number;
+    yInches: number;
+    zInches: number;
+    volumeCubicInches: number;
+  };
   lathe?: {
     stockType: string;
     diameterInches?: number;
