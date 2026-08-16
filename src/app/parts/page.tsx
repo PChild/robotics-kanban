@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Check,
@@ -10,16 +10,24 @@ import {
   ExternalLink,
   FileText,
   LoaderCircle,
+  MessageSquare,
   Search,
+  Send,
+  Trash2,
   Wrench,
   XCircle,
 } from "lucide-react";
 import { getDownloadURL, ref } from "firebase/storage";
 import { AppShell } from "@/components/app-shell";
+import { ModalBackdrop } from "@/components/modal-backdrop";
 import { useAuth } from "@/context/auth-context";
 import { storage } from "@/lib/firebase";
-import { useManufacturingExports } from "@/lib/hooks";
-import { setManufacturingStatus } from "@/lib/manufacturing-actions";
+import { useManufacturingComments, useManufacturingExports } from "@/lib/hooks";
+import {
+  addManufacturingComment,
+  deleteManufacturingExport,
+  setManufacturingStatus,
+} from "@/lib/manufacturing-actions";
 import type {
   ManufacturingEndOperation,
   ManufacturingExport,
@@ -35,8 +43,10 @@ const KIND_LABEL: Record<ManufacturingExportKind, string> = {
   lathe: "LATHE",
 };
 
+const previewUrlCache = new Map<string, string>();
+
 export default function PartsPage() {
-  const { firebaseUser, profile } = useAuth();
+  const { firebaseUser, profile, isCoach } = useAuth();
   const { exports, loading, error } = useManufacturingExports();
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("pending");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -73,8 +83,8 @@ export default function PartsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-[1500px]">
-        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mx-auto max-w-[1500px] lg:flex lg:h-[calc(100dvh-6.5rem)] lg:min-h-0 lg:flex-col lg:overflow-hidden">
+        <div className="mb-5 flex shrink-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Parts</h1>
             <p className="mt-1 max-w-2xl text-sm text-steel">
@@ -88,7 +98,7 @@ export default function PartsPage() {
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 rounded border border-steel-line bg-paper-raised p-3 lg:grid-cols-[minmax(22rem,1fr)_auto_11rem] lg:items-center">
+        <div className="mb-4 grid shrink-0 gap-3 rounded border border-steel-line bg-paper-raised p-3 lg:grid-cols-[minmax(22rem,1fr)_auto_11rem] lg:items-center">
           <label className="relative block min-w-0">
             <span className="sr-only">Search parts</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-steel" size={18} />
@@ -135,13 +145,13 @@ export default function PartsPage() {
           </div>
         )}
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(330px,0.85fr)_minmax(0,1.65fr)]">
-          <section className="overflow-hidden rounded border border-steel-line bg-paper-raised">
+        <div className="grid items-start gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(310px,0.85fr)_minmax(0,1.65fr)] lg:items-stretch lg:overflow-hidden">
+          <section className="overflow-hidden rounded border border-steel-line bg-paper-raised lg:flex lg:min-h-0 lg:flex-col">
             <div className="flex items-center justify-between border-b border-steel-line px-3 py-2.5">
               <h2 className="tracked-label text-[10px] font-bold text-steel">Parts</h2>
               <span className="font-mono text-[11px] text-steel">{filtered.length} shown</span>
             </div>
-            <div className="xl:max-h-[calc(100vh-14.5rem)] xl:overflow-y-auto">
+            <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center gap-2 px-4 py-14 text-sm text-steel">
                   <LoaderCircle className="animate-spin" size={17} /> Loading parts…
@@ -165,6 +175,8 @@ export default function PartsPage() {
             <PartDetails
               key={selected.id}
               item={selected}
+              canDelete={isCoach}
+              onDeleted={() => setSelectedId(null)}
               currentUser={
                 firebaseUser && profile
                   ? { uid: firebaseUser.uid, name: profile.displayName }
@@ -173,7 +185,7 @@ export default function PartsPage() {
             />
           ) : (
             !loading && (
-              <section className="hidden min-h-80 place-items-center rounded border border-dashed border-steel-line bg-paper-raised/70 p-8 text-center xl:grid">
+              <section className="hidden min-h-80 place-items-center rounded border border-dashed border-steel-line bg-paper-raised/70 p-8 text-center lg:grid">
                 <div>
                   <Wrench className="mx-auto mb-3 text-steel" size={26} />
                   <p className="font-medium">No part selected</p>
@@ -243,9 +255,12 @@ function PartRow({
         selected ? "bg-blueprint/10 shadow-[inset_3px_0_0_var(--blueprint)]" : "hover:bg-paper"
       }`}
     >
-      <div className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-sm border ${done ? "border-success/30 bg-success/10 text-success" : cancelled ? "border-danger/30 bg-danger/10 text-danger" : "border-steel-line bg-surface text-blueprint"}`}>
-        {cancelled ? <XCircle size={17} /> : item.kind === "step" ? <Box size={17} /> : item.kind === "lathe" ? <Wrench size={17} /> : <FileText size={17} />}
-      </div>
+      <PartPreview
+        item={item}
+        className={`mt-0.5 size-14 shrink-0 rounded-sm border ${done ? "border-success/30" : cancelled ? "border-danger/30" : "border-steel-line"}`}
+        fallbackClassName={done ? "bg-success/10 text-success" : cancelled ? "bg-danger/10 text-danger" : "bg-surface text-blueprint"}
+        fallback={cancelled ? <XCircle size={19} /> : item.kind === "step" ? <Box size={19} /> : item.kind === "lathe" ? <Wrench size={19} /> : <FileText size={19} />}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className={`truncate text-sm font-semibold ${done || cancelled ? "text-steel line-through decoration-steel-line" : "text-ink"}`}>
@@ -254,7 +269,6 @@ function PartRow({
           {done ? <CheckCircle2 className="mt-0.5 shrink-0 text-success" size={16} /> : cancelled ? <XCircle className="mt-0.5 shrink-0 text-danger" size={16} /> : <Circle className="mt-0.5 shrink-0 text-steel-line" size={16} />}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-steel">
-          <span className="tracked-label text-[9px] font-bold text-blueprint">{KIND_LABEL[item.kind]}</span>
           <span>{titleCase(item.machiningType)}</span>
           <span aria-hidden="true">·</span>
           <span>Qty {item.quantity}</span>
@@ -263,6 +277,60 @@ function PartRow({
         <p className="mt-1.5 text-[10px] text-steel/80">{formatDate(item.createdAt)}</p>
       </div>
     </button>
+  );
+}
+
+function PartPreview({
+  item,
+  className,
+  fallbackClassName,
+  fallback,
+}: {
+  item: ManufacturingExport;
+  className: string;
+  fallbackClassName: string;
+  fallback: React.ReactNode;
+}) {
+  const storagePath = item.previewStoragePath;
+  const [url, setUrl] = useState<string | null>(() => storagePath ? previewUrlCache.get(storagePath) ?? null : null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!storagePath) return;
+    const cached = previewUrlCache.get(storagePath);
+    let active = true;
+    const previewUrlPromise = cached
+      ? Promise.resolve(cached)
+      : getDownloadURL(ref(storage, storagePath));
+    previewUrlPromise
+      .then((previewUrl) => {
+        previewUrlCache.set(storagePath, previewUrl);
+        if (active) setUrl(previewUrl);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [storagePath]);
+
+  if (!url || failed) {
+    return <div className={`${className} ${fallbackClassName} grid place-items-center`}>{fallback}</div>;
+  }
+
+  return (
+    <div className={`${className} bg-white`}>
+      {/* Firebase supplies a runtime URL, so this cannot use a build-time Next image host allowlist. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={`Preview of ${item.friendlyName}`}
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+      />
+    </div>
   );
 }
 
@@ -278,22 +346,103 @@ function EmptyQueue({ hasParts }: { hasParts: boolean }) {
   );
 }
 
-function PartDetails({
+function CommentsSection({
   item,
   currentUser,
 }: {
   item: ManufacturingExport;
   currentUser: { uid: string; name: string } | null;
 }) {
+  const { comments, loading, error } = useManufacturingComments(item.id);
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  async function submitComment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!currentUser || !body.trim() || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await addManufacturingComment(item.id, body, currentUser);
+      setBody("");
+    } catch (commentError) {
+      console.error(commentError);
+      setSubmitError("Comment could not be posted. Check the deployed Firestore rules and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <DetailGroup title="Shop comments" icon={<MessageSquare size={14} />}>
+      {loading ? (
+        <p className="flex items-center gap-2 py-2 text-xs text-steel"><LoaderCircle className="animate-spin" size={13} /> Loading comments…</p>
+      ) : comments.length === 0 ? (
+        <p className="py-1 text-xs text-steel">No comments yet. Add setup notes, progress, or issues here.</p>
+      ) : (
+        <div className="mb-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+          {comments.map((comment) => (
+            <article key={comment.id} className="rounded-sm border border-steel-line bg-paper px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 text-[10px]">
+                <span className="font-semibold text-ink">{comment.authorName}</span>
+                <time className="shrink-0 text-steel">{formatDateTime(comment.createdAt)}</time>
+              </div>
+              <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-ink">{comment.body}</p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {(error || submitError) && <p className="mb-2 text-xs text-danger">{submitError || error}</p>}
+
+      <form onSubmit={submitComment} className="flex items-end gap-2">
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Add a comment about making this part</span>
+          <textarea
+            className="input min-h-20 resize-y"
+            placeholder="Add a comment about making this part…"
+            value={body}
+            maxLength={2000}
+            onChange={(event) => setBody(event.target.value)}
+          />
+        </label>
+        <button
+          type="submit"
+          className="btn-primary inline-flex h-10 shrink-0 items-center gap-2"
+          disabled={!currentUser || !body.trim() || submitting}
+        >
+          {submitting ? <LoaderCircle className="animate-spin" size={14} /> : <Send size={14} />}
+          Comment
+        </button>
+      </form>
+    </DetailGroup>
+  );
+}
+
+function PartDetails({
+  item,
+  currentUser,
+  canDelete,
+  onDeleted,
+}: {
+  item: ManufacturingExport;
+  currentUser: { uid: string; name: string } | null;
+  canDelete: boolean;
+  onDeleted: () => void;
+}) {
   const [updating, setUpdating] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const done = item.manufacturingStatus === "complete";
   const cancelled = item.manufacturingStatus === "cancelled";
   const onshapeUrl = buildOnshapeUrl(item);
 
   async function changeStatus(status: "pending" | "complete" | "cancelled") {
-    if (!currentUser || updating) return;
+    if (!currentUser || updating || deleting) return;
     setUpdating(true);
     setActionError(null);
     try {
@@ -307,7 +456,7 @@ function PartDetails({
   }
 
   async function downloadFile() {
-    if (!item.storagePath || downloading) return;
+    if (!item.storagePath || downloading || deleting) return;
     setDownloading(true);
     setActionError(null);
     try {
@@ -328,8 +477,36 @@ function PartDetails({
     }
   }
 
+  async function deletePart() {
+    if (!canDelete || deleting || updating || downloading) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteManufacturingExport(item);
+      setDeleteConfirmOpen(false);
+      onDeleted();
+    } catch (error) {
+      console.error(error);
+      setDeleteError(
+        "This part could not be fully deleted. Any already-missing files are handled safely, so check the deployed Firestore and Storage rules and try again.",
+      );
+      setDeleting(false);
+    }
+  }
+
+  function openDeleteDialog() {
+    if (!canDelete || deleting || updating || downloading) return;
+    setDeleteError(null);
+    setDeleteConfirmOpen(true);
+  }
+
+  function closeDeleteDialog() {
+    if (!deleting) setDeleteConfirmOpen(false);
+  }
+
   return (
-    <section className="overflow-hidden rounded border border-steel-line bg-paper-raised">
+    <>
+      <section className="overflow-hidden rounded border border-steel-line bg-paper-raised lg:h-full lg:min-h-0 lg:overflow-y-auto">
       <div className={`h-1 ${done ? "bg-success" : cancelled ? "bg-danger" : "bg-blueprint"}`} />
       <div className="border-b border-steel-line p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -338,13 +515,10 @@ function PartDetails({
               <StatusBadge status={item.manufacturingStatus} />
             </div>
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{item.friendlyName}</h2>
-            <p className="mt-1.5 text-sm text-steel">
-              {titleCase(item.machiningType)}{item.material ? ` in ${titleCase(item.material)}` : ""} · Quantity {item.quantity}
-            </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             {item.storagePath && (
-              <button type="button" className="btn-primary inline-flex items-center gap-2" onClick={downloadFile} disabled={downloading}>
+              <button type="button" className="btn-primary inline-flex items-center gap-2" onClick={downloadFile} disabled={downloading || deleting}>
                 {downloading ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}
                 {downloading ? "Preparing…" : `Download ${KIND_LABEL[item.kind]}`}
               </button>
@@ -354,8 +528,28 @@ function PartDetails({
                 <ExternalLink size={14} /> Onshape
               </a>
             )}
+            {canDelete && (
+              <button
+                type="button"
+                className="btn-secondary inline-flex items-center gap-2 border-danger/50 text-danger hover:bg-danger/10"
+                onClick={openDeleteDialog}
+                disabled={deleting || updating || downloading}
+              >
+                {deleting ? <LoaderCircle className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                {deleting ? "Deleting…" : "Delete part"}
+              </button>
+            )}
           </div>
         </div>
+
+        {item.previewStoragePath && (
+          <PartPreview
+            item={item}
+            className="mt-4 h-56 w-full overflow-hidden rounded border border-steel-line"
+            fallbackClassName="bg-paper text-steel"
+            fallback={item.kind === "step" ? <Box size={30} /> : item.kind === "lathe" ? <Wrench size={30} /> : <FileText size={30} />}
+          />
+        )}
 
         {actionError && <p className="mt-3 rounded-sm bg-danger/10 px-3 py-2 text-xs text-danger">{actionError}</p>}
 
@@ -364,7 +558,7 @@ function PartDetails({
             <button
               type="button"
               onClick={() => changeStatus("complete")}
-              disabled={!currentUser || updating}
+              disabled={!currentUser || updating || deleting}
               className="btn-primary flex min-h-14 items-center justify-center gap-2"
             >
               {updating ? <LoaderCircle className="animate-spin" size={15} /> : <Check size={16} strokeWidth={3} />}
@@ -373,7 +567,7 @@ function PartDetails({
             <button
               type="button"
               onClick={() => changeStatus("cancelled")}
-              disabled={!currentUser || updating}
+              disabled={!currentUser || updating || deleting}
               className="btn-secondary flex min-h-14 items-center justify-center gap-2"
               style={{ color: "var(--danger)" }}
             >
@@ -384,7 +578,7 @@ function PartDetails({
           <button
             type="button"
             onClick={() => changeStatus("pending")}
-            disabled={!currentUser || updating}
+            disabled={!currentUser || updating || deleting}
             className={`mt-5 flex w-full items-center gap-3 rounded border px-3 py-3 text-left transition-colors ${
               done
                 ? "border-success/40 bg-success/10 hover:bg-success/15"
@@ -412,14 +606,72 @@ function PartDetails({
         <InfoCell label="Subsystem" value={item.subsystem || "Not specified"} />
         <InfoCell label="Requested by" value={item.requestedBy?.name || "Unknown"} />
         <InfoCell label="Requested" value={formatDateTime(item.createdAt)} />
+        {item.kind === "lathe" && item.overallLengthInches !== undefined && (
+          <InfoCell label="Shaft length" value={`${formatMeasurement(item.overallLengthInches)} in`} emphasis />
+        )}
+        {item.kind === "dxf" && item.materialThicknessInches !== undefined && (
+          <InfoCell label="Thickness" value={`${formatMeasurement(item.materialThicknessInches)} in`} />
+        )}
+        {item.kind === "dxf" && item.dxfBounds && (
+          <InfoCell
+            label="Bounding box"
+            value={`${formatMeasurement(item.dxfBounds.widthInches)} × ${formatMeasurement(item.dxfBounds.heightInches)} in`}
+            emphasis
+          />
+        )}
       </div>
 
-      {item.kind === "lathe" && item.lathe && (
-        <div className="p-4 sm:p-5">
-          <LatheDetails item={item} />
-        </div>
+      <div className="space-y-5 p-4 sm:p-5">
+        {item.kind === "lathe" && item.lathe && <LatheDetails item={item} />}
+        <CommentsSection item={item} currentUser={deleting ? null : currentUser} />
+      </div>
+      </section>
+
+      {deleteConfirmOpen && (
+        <ModalBackdrop onClose={closeDeleteDialog}>
+          <div
+            className="w-full max-w-md rounded border border-danger/40 bg-paper-raised p-5 shadow-xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-part-title"
+            aria-describedby="delete-part-description"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-danger/10 text-danger">
+                <Trash2 size={18} />
+              </span>
+              <div className="min-w-0">
+                <h2 id="delete-part-title" className="text-lg font-semibold">Delete this part?</h2>
+                <p id="delete-part-description" className="mt-1.5 text-sm leading-relaxed text-steel">
+                  This will permanently delete <strong className="font-semibold text-ink">{item.friendlyName}</strong>, its manufacturing file, preview image, and all comments.
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-medium text-danger">
+              This cannot be undone.
+            </p>
+            {deleteError && <p className="mt-3 text-xs leading-relaxed text-danger">{deleteError}</p>}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" className="btn-secondary" onClick={closeDeleteDialog} disabled={deleting}>
+                Keep part
+              </button>
+              <button
+                type="button"
+                className="btn-primary inline-flex items-center justify-center gap-2 bg-danger hover:opacity-90"
+                onClick={deletePart}
+                disabled={deleting}
+                autoFocus
+              >
+                {deleting ? <LoaderCircle className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                {deleting ? "Deleting…" : "Permanently delete"}
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>
       )}
-    </section>
+    </>
   );
 }
 
@@ -509,6 +761,10 @@ function formatDate(date: Date | null) {
 
 function formatDateTime(date: Date | null) {
   return date?.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) ?? "Pending";
+}
+
+function formatMeasurement(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(value);
 }
 
 function completionSummary(item: ManufacturingExport) {

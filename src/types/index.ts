@@ -136,12 +136,13 @@ export interface ManufacturingExport {
   kind: ManufacturingExportKind;
   friendlyName: string;
   quantity: number;
-  machiningType: "laser" | "plasma" | "waterjet" | "3d printed" | "lathe";
+  machiningType: "laser" | "plasma" | "waterjet" | "3d printed" | "3D printed" | "lathe";
   material?: string;
+  materialThicknessInches?: number;
   subsystem?: string;
   context: {
     documentId: string;
-    workspaceOrVersion: "w" | "v";
+    workspaceOrVersion: "w" | "v" | "m";
     workspaceOrVersionId: string;
     elementId: string;
     server: string;
@@ -154,6 +155,12 @@ export interface ManufacturingExport {
     name?: string;
   }>;
   partId?: string;
+  overallLengthInches?: number;
+  dxfBounds?: {
+    widthInches: number;
+    heightInches: number;
+    areaSquareInches: number;
+  };
   lathe?: {
     stockType: string;
     diameterInches?: number;
@@ -167,6 +174,12 @@ export interface ManufacturingExport {
   storagePath?: string;
   byteLength?: number;
   contentType?: string;
+  previewStatus?: "complete" | "unavailable";
+  previewFileName?: string;
+  previewStoragePath?: string;
+  previewContentType?: string;
+  previewWidth?: number;
+  previewHeight?: number;
   requestedBy: {
     id: string;
     name: string;
@@ -184,5 +197,13 @@ export interface ManufacturingExport {
     uid: string;
     name: string;
   };
+  createdAt: Date | null;
+}
+
+export interface ManufacturingComment {
+  id: string;
+  body: string;
+  authorUid: string;
+  authorName: string;
   createdAt: Date | null;
 }

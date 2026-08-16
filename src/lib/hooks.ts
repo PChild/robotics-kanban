@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Task, UserProfile, Certification, TimeEntry, TimeclockPin, ManufacturingExport } from "@/types";
+import type { Task, UserProfile, Certification, TimeEntry, TimeclockPin, ManufacturingComment, ManufacturingExport } from "@/types";
 
 // These use onSnapshot directly (rather than one-shot fetches) so that when
 // one student drags a card, or a coach edits a cert, every open board
@@ -147,4 +147,40 @@ export function useManufacturingExports() {
   }, []);
 
   return { exports, loading, error };
+}
+
+export function useManufacturingComments(exportId: string) {
+  const [comments, setComments] = useState<ManufacturingComment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const source = query(collection(db, "exports", exportId, "comments"), orderBy("createdAt", "asc"));
+    return onSnapshot(
+      source,
+      (snapshot) => {
+        setComments(
+          snapshot.docs.map((record) => {
+            const data = record.data();
+            return {
+              id: record.id,
+              body: data.body,
+              authorUid: data.authorUid,
+              authorName: data.authorName,
+              createdAt: data.createdAt?.toDate?.() ?? null,
+            } as ManufacturingComment;
+          }),
+        );
+        setError(null);
+        setLoading(false);
+      },
+      (snapshotError) => {
+        console.error(snapshotError);
+        setError("Comments could not be loaded.");
+        setLoading(false);
+      },
+    );
+  }, [exportId]);
+
+  return { comments, loading, error };
 }
