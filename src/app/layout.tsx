@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Robotics team board",
-  description: "Kanban task board and certification tracker for the robotics team",
+  title: "401 Ops",
+  description: "Team 401's operations hub for projects, people, manufacturing, and inventory",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

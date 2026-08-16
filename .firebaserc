@@ -1,6 +1,6 @@
 {
   "projects": {
-    "dashboard": "robotics-kanban"
+    "ops": "robotics-kanban"
   },
   "targets": {},
   "etags": {}

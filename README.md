@@ -1,6 +1,6 @@
-# Robotics Team Board
+# 401 Ops
 
-A team operations app for managing robotics projects, student assignments, certifications, attendance, and reporting. It is built as a static Next.js application and uses Firebase Authentication, Cloud Firestore, and Firebase Storage for its backend.
+Team 401's operations hub for managing projects, assignments, certifications, attendance, manufacturing, inventory, and reporting. It is built as a static Next.js application and uses Firebase Authentication, Cloud Firestore, and Firebase Storage for its backend.
 
 ## What the app does
 
@@ -182,10 +182,12 @@ Add each `NEXT_PUBLIC_FIREBASE_*` value listed above as a GitHub Actions reposit
 The GitHub Pages base path is derived from the repository name in `next.config.ts`:
 
 ```ts
-const repoName = "robotics-kanban";
+const repoName = "ops";
 ```
 
-Update that value if the repository is renamed.
+With the repository named `ops`, the project site is published at
+`https://team401.github.io/ops/` or at `/ops/` beneath the team's configured
+custom domain. Update this value if the repository is renamed again.
 
 ## Operational notes
 
