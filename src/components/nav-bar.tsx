@@ -16,7 +16,7 @@ export function NavBar() {
   const canSeeMetrics = isCoach || isStudentLeader;
 
   const links = [
-    { href: "/board", label: "All boards" },
+    { href: "/board", label: "Kanban" },
     ...(profile.subteam
       ? [{ href: `/board/${profile.subteam}`, label: "My subteam" }]
       : []),
