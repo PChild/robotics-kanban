@@ -35,7 +35,7 @@ import type {
 } from "@/types";
 
 type QueueFilter = "pending" | "all" | "complete" | "cancelled";
-type KindFilter = "all" | ManufacturingExportKind;
+type ProcessFilter = "all" | "waterjet" | "laser" | "plasma" | "3d printed" | "lathe";
 
 const KIND_LABEL: Record<ManufacturingExportKind, string> = {
   dxf: "DXF",
@@ -49,7 +49,7 @@ export default function PartsPage() {
   const { firebaseUser, profile, isCoach } = useAuth();
   const { exports, loading, error } = useManufacturingExports();
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("pending");
-  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [processFilter, setProcessFilter] = useState<ProcessFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -66,7 +66,7 @@ export default function PartsPage() {
     const term = search.trim().toLocaleLowerCase();
     return exports.filter((item) => {
       if (queueFilter !== "all" && item.manufacturingStatus !== queueFilter) return false;
-      if (kindFilter !== "all" && item.kind !== kindFilter) return false;
+      if (processFilter !== "all" && item.machiningType.toLocaleLowerCase() !== processFilter) return false;
       if (!term) return true;
       return [
         item.friendlyName,
@@ -77,7 +77,7 @@ export default function PartsPage() {
         item.fileName,
       ].some((value) => value?.toLocaleLowerCase().includes(term));
     });
-  }, [exports, kindFilter, queueFilter, search]);
+  }, [exports, processFilter, queueFilter, search]);
 
   const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
 
@@ -129,12 +129,14 @@ export default function PartsPage() {
           <select
             className="input h-11 w-full"
             aria-label="Filter by manufacturing process"
-            value={kindFilter}
-            onChange={(event) => setKindFilter(event.target.value as KindFilter)}
+            value={processFilter}
+            onChange={(event) => setProcessFilter(event.target.value as ProcessFilter)}
           >
             <option value="all">All processes</option>
-            <option value="dxf">DXF cutting</option>
-            <option value="step">3D printing</option>
+            <option value="waterjet">Waterjet</option>
+            <option value="laser">Laser</option>
+            <option value="plasma">Plasma</option>
+            <option value="3d printed">3D printing</option>
             <option value="lathe">Lathe</option>
           </select>
         </div>
