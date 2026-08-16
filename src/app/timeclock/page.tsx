@@ -9,19 +9,18 @@ import { useAuth } from "@/context/auth-context";
 import { auth } from "@/lib/firebase";
 import { useTimeEntries, useUsers } from "@/lib/hooks";
 import {
+  clearKioskSession,
+  getKioskSession,
+  startKioskSession,
+  type KioskConfig,
+} from "@/lib/kiosk-session";
+import {
   clockInUser,
   clockOutEntry,
   clockOutEveryone,
   findUidByPin,
 } from "@/lib/timeclock-actions";
 import type { TimeclockActivity, TimeEntry, UserProfile } from "@/types";
-
-interface KioskConfig {
-  activity: TimeclockActivity;
-  activityName: string;
-}
-
-const KIOSK_STORAGE_KEY = "robotics-timeclock-kiosk";
 
 export default function TimeclockPage() {
   const { profile, isCoach } = useAuth();
@@ -41,15 +40,8 @@ export default function TimeclockPage() {
 
   useEffect(() => {
     if (!isCoach) return;
-    const saved = window.sessionStorage.getItem(KIOSK_STORAGE_KEY);
     const timer = window.setTimeout(() => {
-      if (saved) {
-        try {
-          setKioskConfig(JSON.parse(saved) as KioskConfig);
-        } catch {
-          window.sessionStorage.removeItem(KIOSK_STORAGE_KEY);
-        }
-      }
+      setKioskConfig(getKioskSession());
       setKioskChecked(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -84,13 +76,13 @@ export default function TimeclockPage() {
   }
 
   function startKiosk(config: KioskConfig) {
-    window.sessionStorage.setItem(KIOSK_STORAGE_KEY, JSON.stringify(config));
+    startKioskSession(config);
     setKioskConfig(config);
     setShowKioskSetup(false);
   }
 
   function exitKiosk() {
-    window.sessionStorage.removeItem(KIOSK_STORAGE_KEY);
+    clearKioskSession();
     setKioskConfig(null);
   }
 

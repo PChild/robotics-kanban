@@ -171,7 +171,7 @@ Uploaded task files are stored under `task-attachments/{taskId}/...` in Firebase
 
 Only a coach can launch the kiosk. Kiosk PINs identify which team member is clocking in or out; they are not Firebase passwords and cannot be used to sign into the main application.
 
-The kiosk runs inside the authenticated coach session, so exiting kiosk mode requires the current coach's password. A safe-sign-out option is also available and returns the device to the login screen. Firestore rules restrict all time-entry writes and PIN reads to coaches.
+The kiosk runs inside the authenticated coach session, so exiting kiosk mode requires the current coach's password. While kiosk mode is active, a root-level guard blocks other app routes and replaces Back/Forward navigation with the locked timeclock. A safe-sign-out option is also available and returns the device to the login screen. Firestore rules restrict all time-entry writes and PIN reads to coaches.
 
 ## Deploying to GitHub Pages
 
