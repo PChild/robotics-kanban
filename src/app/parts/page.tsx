@@ -531,7 +531,7 @@ function PartDetails({
             {canDelete && (
               <button
                 type="button"
-                className="btn-secondary inline-flex items-center gap-2 border-danger/50 text-danger hover:bg-danger/10"
+                className="btn-danger inline-flex items-center gap-2"
                 onClick={openDeleteDialog}
                 disabled={deleting || updating || downloading}
               >
@@ -659,7 +659,7 @@ function PartDetails({
               </button>
               <button
                 type="button"
-                className="btn-primary inline-flex items-center justify-center gap-2 bg-danger hover:opacity-90"
+                className="btn-danger inline-flex items-center justify-center gap-2"
                 onClick={deletePart}
                 disabled={deleting}
                 autoFocus

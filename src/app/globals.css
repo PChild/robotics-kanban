@@ -133,3 +133,21 @@ body {
 .btn-secondary:hover {
   border-color: var(--steel);
 }
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: .55rem 1rem;
+  font-size: .9rem;
+  transition: filter .15s ease;
+}
+
+.btn-danger:hover {
+  filter: brightness(.88);
+}
+
+.btn-danger:disabled {
+  opacity: .6;
+}
