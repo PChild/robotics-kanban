@@ -5,8 +5,9 @@ export interface KioskConfig {
   activityName: string;
 }
 
-const KIOSK_STORAGE_KEY = "robotics-timeclock-kiosk";
-const KIOSK_STATE_EVENT = "robotics-kiosk-state-change";
+const KIOSK_STORAGE_KEY = "team401-ops-timeclock-kiosk";
+const LEGACY_KIOSK_STORAGE_KEY = "robotics-timeclock-kiosk";
+const KIOSK_STATE_EVENT = "team401-ops-kiosk-state-change";
 
 function isKioskConfig(value: unknown): value is KioskConfig {
   if (!value || typeof value !== "object") return false;
@@ -19,17 +20,24 @@ function isKioskConfig(value: unknown): value is KioskConfig {
 
 export function getKioskSession() {
   if (typeof window === "undefined") return null;
-  const saved = window.sessionStorage.getItem(KIOSK_STORAGE_KEY);
+  const saved = window.sessionStorage.getItem(KIOSK_STORAGE_KEY)
+    ?? window.sessionStorage.getItem(LEGACY_KIOSK_STORAGE_KEY);
   if (!saved) return null;
 
   try {
     const parsed: unknown = JSON.parse(saved);
-    if (isKioskConfig(parsed)) return parsed;
+    if (isKioskConfig(parsed)) {
+      // Preserve a kiosk that was already active when the app was renamed.
+      window.sessionStorage.setItem(KIOSK_STORAGE_KEY, JSON.stringify(parsed));
+      window.sessionStorage.removeItem(LEGACY_KIOSK_STORAGE_KEY);
+      return parsed;
+    }
   } catch {
     // Invalid or obsolete session data is cleared below.
   }
 
   window.sessionStorage.removeItem(KIOSK_STORAGE_KEY);
+  window.sessionStorage.removeItem(LEGACY_KIOSK_STORAGE_KEY);
   return null;
 }
 
@@ -41,6 +49,7 @@ export function startKioskSession(config: KioskConfig) {
 export function clearKioskSession() {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(KIOSK_STORAGE_KEY);
+  window.sessionStorage.removeItem(LEGACY_KIOSK_STORAGE_KEY);
   window.dispatchEvent(new Event(KIOSK_STATE_EVENT));
 }
 

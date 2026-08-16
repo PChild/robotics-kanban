@@ -116,7 +116,7 @@ export default function LoginPage() {
         className="bg-paper-raised border border-steel-line rounded w-full max-w-sm p-8 space-y-5"
       >
         <div>
-          <p className="tracked-label text-xs text-blueprint mb-1">Team board</p>
+          <p className="tracked-label text-xs text-blueprint mb-1">401 Ops</p>
           <h1 className="text-xl font-semibold">Sign in</h1>
           <p className="text-sm text-steel mt-1">
             Use the email and password your coach gave you.

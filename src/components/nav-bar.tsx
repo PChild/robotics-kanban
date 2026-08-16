@@ -46,6 +46,13 @@ export function NavBar() {
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
+        <Link
+          href="/board"
+          className="tracked-label shrink-0 text-xs font-bold text-blueprint hover:text-blueprint-deep"
+        >
+          401 Ops
+        </Link>
+
         <nav className="hidden md:flex items-center gap-1 flex-1 overflow-x-auto">
           {links.map((l) => (
             <Link

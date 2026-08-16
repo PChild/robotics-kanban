@@ -293,11 +293,11 @@ function emailAccountCredentials(credentials: AccountCredentials) {
   siteUrl.search = "";
   siteUrl.hash = "";
 
-  const subject = "Your Robotics Team Board account";
+  const subject = "Your 401 Ops account";
   const body = [
     `Hi ${credentials.name},`,
     "",
-    "Your Robotics Team Board account is ready.",
+    "Your 401 Ops account is ready.",
     "",
     `Site: ${siteUrl.toString()}`,
     `Sign-in email: ${credentials.email}`,
