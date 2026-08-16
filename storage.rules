@@ -25,5 +25,12 @@ service firebase.storage {
         && (canManage(taskId) || task(taskId).assigneeUids.hasAny([request.auth.uid]))
         && (request.resource == null || request.resource.size <= 20 * 1024 * 1024);
     }
+
+    // The Onshape exporter's Admin SDK owns manufacturing file writes. Team
+    // members authenticated in the dashboard may download the finished files.
+    match /manufacturing/{path=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
   }
 }

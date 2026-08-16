@@ -98,6 +98,10 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--blueprint) 20%, transparent);
 }
 
+.input-with-icon {
+  padding-left: 2.75rem;
+}
+
 .btn-primary {
   background: var(--blueprint);
   color: white;
