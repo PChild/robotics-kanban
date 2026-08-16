@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = {
   title: "401 Ops",
-  description: "Team 401's operations hub for projects, people, manufacturing, and inventory",
+  description:
+    "Team 401's operations hub for projects, people, manufacturing, and inventory",
 
   icons: {
-    icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-    ],
-    apple: "/apple-touch-icon.png",
+    apple: withBasePath("/apple-touch-icon.png"),
   },
 
-  manifest: "/manifest.webmanifest",
+  manifest: withBasePath("/manifest.webmanifest"),
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
