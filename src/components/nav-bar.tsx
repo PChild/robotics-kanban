@@ -24,6 +24,7 @@ export function NavBar() {
     ...(isCoach ? [{ href: "/timeclock", label: "Timeclock" }] : []),
     { href: "/my-tasks", label: "My tasks" },
     { href: "/parts", label: "Parts" },
+    { href: "/inventory", label: "Inventory" },
     { href: "/certifications", label: "Certifications" },
     ...(canSeeMetrics ? [{ href: "/metrics", label: "Metrics" }] : []),
     { href: "/reports", label: "Reports" },

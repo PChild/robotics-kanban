@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Task, UserProfile, Certification, TimeEntry, TimeclockPin, ManufacturingComment, ManufacturingExport } from "@/types";
+import type { Task, UserProfile, Certification, TimeEntry, TimeclockPin, ManufacturingComment, ManufacturingExport, InventoryItem } from "@/types";
 
 // These use onSnapshot directly (rather than one-shot fetches) so that when
 // one student drags a card, or a coach edits a cert, every open board
@@ -183,4 +183,47 @@ export function useManufacturingComments(exportId: string) {
   }, [exportId]);
 
   return { comments, loading, error };
+}
+
+export function useInventory() {
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const source = query(collection(db, "inventory"), orderBy("updatedAt", "desc"));
+    return onSnapshot(
+      source,
+      (snapshot) => {
+        setItems(
+          snapshot.docs.map((record) => {
+            const data = record.data();
+            return {
+              ...data,
+              id: record.id,
+              quantity: data.quantity ?? 0,
+              minimumQuantity: data.minimumQuantity ?? 0,
+              location: data.location ?? "",
+              manufacturer: data.manufacturer ?? "",
+              partNumber: data.partNumber ?? "",
+              vendorUrl: data.vendorUrl ?? "",
+              notes: data.notes ?? "",
+              specs: data.specs ?? {},
+              createdAt: data.createdAt?.toDate?.() ?? null,
+              updatedAt: data.updatedAt?.toDate?.() ?? null,
+            } as InventoryItem;
+          }),
+        );
+        setError(null);
+        setLoading(false);
+      },
+      (snapshotError) => {
+        console.error(snapshotError);
+        setError("Inventory could not be loaded. Check that the latest Firestore rules are deployed.");
+        setLoading(false);
+      },
+    );
+  }, []);
+
+  return { items, loading, error };
 }

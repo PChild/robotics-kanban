@@ -5,6 +5,7 @@ A team operations app for managing robotics projects, student assignments, certi
 ## What the app does
 
 - Kanban boards for the full team and individual subteams
+- Searchable drivetrain inventory for gears, pulleys, sprockets, and belts
 - Certification-aware task assignment and self-assignment
 - Task priorities, due dates, points of contact, comments, and file attachments
 - Stuck-task reasons and prerequisite task relationships
@@ -28,6 +29,17 @@ A team operations app for managing robotics projects, student assignments, certi
 | Student | Can view boards, join eligible tasks, update assigned tasks, add comments or attachments, and view their own certifications and report. |
 
 The interface hides unavailable actions, but the actual authorization boundary is enforced by `firestore.rules` and `storage.rules`.
+
+## Hardware inventory
+
+The authenticated `/inventory` page tracks quantities, bin locations, sourcing
+details, and category-specific specifications. It includes the team's standard
+20 DP gears, 3mm GT2 and 5mm HTD belts/pulleys, #25 and #35 sprockets, 9mm and
+15mm widths, single/double-sided belts, and common robot bore standards.
+Suggested specifications remain free-text entries, so newly acquired bore,
+profile, width, and chain options automatically become searchable filter
+choices without a schema change. Any signed-in team member can add hardware,
+edit records, and adjust stock; only coaches can permanently delete records.
 
 ## Manufacturing integration
 
@@ -148,6 +160,7 @@ The app currently uses these top-level collections:
 - `users` — profiles, roles, subteams, and certifications
 - `tasks` — task details, assignment history, comments, attachments, and dependencies
 - `certifications` — coach-managed certification definitions
+- `inventory` — mechanical hardware specifications, locations, and live stock counts
 - `subteams` — optional coach-managed subteam reference data
 - `timeclockPins` — coach-only kiosk PIN records kept separate from public profiles
 - `timeEntries` — shop and outreach attendance sessions

@@ -158,6 +158,117 @@ service cloud.firestore {
         );
     }
 
+    // --- mechanical inventory ---
+    // Every signed-in team member can find hardware, add newly acquired parts,
+    // and keep counts/details current. Permanent deletion stays coach-only.
+    match /inventory/{itemId} {
+      function validActor(actor) {
+        return actor is map
+          && actor.keys().hasOnly(['uid', 'name'])
+          && actor.uid == request.auth.uid
+          && actor.name == myProfile().displayName;
+      }
+
+      function validInventoryRecord() {
+        return request.resource.data.keys().hasOnly([
+            'id', 'category', 'name', 'quantity', 'minimumQuantity',
+            'location', 'manufacturer', 'partNumber', 'vendorUrl', 'notes',
+            'specs', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.id == itemId
+          && request.resource.data.category in ['gear', 'pulley', 'sprocket', 'belt']
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.quantity is int
+          && request.resource.data.quantity >= 0
+          && request.resource.data.quantity <= 100000
+          && request.resource.data.minimumQuantity is int
+          && request.resource.data.minimumQuantity >= 0
+          && request.resource.data.minimumQuantity <= 100000
+          && request.resource.data.location is string
+          && request.resource.data.location.size() <= 100
+          && request.resource.data.manufacturer is string
+          && request.resource.data.manufacturer.size() <= 100
+          && request.resource.data.partNumber is string
+          && request.resource.data.partNumber.size() <= 100
+          && request.resource.data.vendorUrl is string
+          && request.resource.data.vendorUrl.size() <= 500
+          && request.resource.data.notes is string
+          && request.resource.data.notes.size() <= 1000
+          && request.resource.data.specs is map
+          && request.resource.data.specs.keys().hasOnly([
+            'diametralPitch', 'beltProfile', 'widthMm', 'sided',
+            'toothCount', 'bore', 'chainSize', 'pitchLengthMm'
+          ])
+          && (!('diametralPitch' in request.resource.data.specs)
+            || (request.resource.data.specs.diametralPitch is string
+              && request.resource.data.specs.diametralPitch.size() <= 40))
+          && (!('beltProfile' in request.resource.data.specs)
+            || (request.resource.data.specs.beltProfile is string
+              && request.resource.data.specs.beltProfile.size() <= 40))
+          && (!('widthMm' in request.resource.data.specs)
+            || (request.resource.data.specs.widthMm is string
+              && request.resource.data.specs.widthMm.size() <= 20))
+          && (!('sided' in request.resource.data.specs)
+            || request.resource.data.specs.sided in ['single', 'double'])
+          && (!('toothCount' in request.resource.data.specs)
+            || (request.resource.data.specs.toothCount is int
+              && request.resource.data.specs.toothCount > 0
+              && request.resource.data.specs.toothCount <= 10000))
+          && (!('bore' in request.resource.data.specs)
+            || (request.resource.data.specs.bore is string
+              && request.resource.data.specs.bore.size() <= 60))
+          && (!('chainSize' in request.resource.data.specs)
+            || (request.resource.data.specs.chainSize is string
+              && request.resource.data.specs.chainSize.size() <= 40))
+          && (!('pitchLengthMm' in request.resource.data.specs)
+            || (request.resource.data.specs.pitchLengthMm is number
+              && request.resource.data.specs.pitchLengthMm > 0
+              && request.resource.data.specs.pitchLengthMm <= 100000))
+          && (
+            (request.resource.data.category == 'gear'
+              && request.resource.data.specs.diametralPitch == '20 DP'
+              && request.resource.data.specs.toothCount is int
+              && request.resource.data.specs.bore is string)
+            ||
+            (request.resource.data.category == 'pulley'
+              && request.resource.data.specs.beltProfile is string
+              && request.resource.data.specs.widthMm is string
+              && request.resource.data.specs.toothCount is int
+              && request.resource.data.specs.bore is string)
+            ||
+            (request.resource.data.category == 'sprocket'
+              && request.resource.data.specs.chainSize is string
+              && request.resource.data.specs.toothCount is int
+              && request.resource.data.specs.bore is string)
+            ||
+            (request.resource.data.category == 'belt'
+              && request.resource.data.specs.beltProfile is string
+              && request.resource.data.specs.widthMm is string
+              && request.resource.data.specs.sided in ['single', 'double']
+              && ('toothCount' in request.resource.data.specs
+                || 'pitchLengthMm' in request.resource.data.specs))
+          )
+          && validActor(request.resource.data.updatedBy)
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && validInventoryRecord()
+        && validActor(request.resource.data.createdBy)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSignedIn()
+        && validInventoryRecord()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isCoach();
+    }
+
     // --- subteams (simple reference list, coach-managed) ---
     match /subteams/{subteamId} {
       allow read: if isSignedIn();
