@@ -4,7 +4,6 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   Box,
-  Boxes,
   ChevronRight,
   CircleDot,
   Cog,
@@ -122,10 +121,6 @@ export default function InventoryPage() {
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-1 flex items-center gap-2 text-blueprint">
-              <Boxes size={20} />
-              <span className="tracked-label text-[10px] font-bold">Mechanical stores</span>
-            </div>
             <h1 className="text-2xl font-semibold tracking-tight">Hardware inventory</h1>
             <p className="mt-1 max-w-2xl text-sm text-steel">
               Find drivetrain hardware, see what is on hand, and keep bin counts current.
