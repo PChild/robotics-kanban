@@ -4,7 +4,10 @@ import { Providers } from "./providers";
 import { withBasePath } from "@/lib/base-path";
 
 export const metadata: Metadata = {
-  title: "401 Ops",
+  title: {
+    default: "401 Ops",
+    template: "%s | 401 Ops",
+  },
   description:
     "Team 401's operations hub for projects, people, manufacturing, and inventory",
 
