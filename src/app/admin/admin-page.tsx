@@ -307,7 +307,12 @@ function emailAccountCredentials(credentials: AccountCredentials) {
     "The first time you sign in, you will be asked to choose a new password. Keep your timeclock PIN private and ask a coach if you need help.",
   ].join("\n");
 
-  window.location.href = `mailto:${encodeURIComponent(credentials.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoUrl =
+    `mailto:${encodeURIComponent(credentials.email)}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
+
+  window.open(mailtoUrl, "_blank");
 }
 
 function BatchImportDialog({
